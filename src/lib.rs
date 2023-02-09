@@ -17,11 +17,8 @@ pub use crate::dimension::IxDynImpl;
 pub use crate::dimension::NdIndex;
 pub use crate::dimension::{Axis, AxisDescription, Dimension, IntoDimension, RemoveAxis};
 pub use crate::dimension::{DimAdd, DimMax};
-pub use crate::error::{ErrorKind, ShapeError};
 pub use crate::indexes::{indices, indices_of};
-use crate::iterators::Baseiter;
 use crate::iterators::{ElementsBase, ElementsBaseMut, Iter, IterMut};
-pub use crate::order::Order;
 pub use crate::shape_builder::{Shape, ShapeArg, ShapeBuilder, StrideShape};
 pub use crate::slice::{
     MultiSliceArg, NewAxis, Slice, SliceArg, SliceInfo, SliceInfoElem, SliceNextDim,
@@ -30,9 +27,7 @@ use alloc::sync::Arc;
 use std::marker::PhantomData;
 #[macro_use]
 mod macro_utils {
-    macro_rules ! copy_and_clone { ([$ ($ parm : tt) *] $ type_ : ty) => { impl <$ ($ parm) *> Copy for $ type_ { } impl <$ ($ parm) *> Clone for $ type_ { # [inline (always)] fn clone (& self) -> Self { * self } } } ; ($ type_ : ty) => { copy_and_clone ! { [] $ type_ } } }
     macro_rules ! clone_bounds { ([$ ($ parmbounds : tt) *] $ typename : ident [$ ($ parm : tt) *] { @ copy { $ ($ copyfield : ident ,) * } $ ($ field : ident ,) * }) => { impl <$ ($ parmbounds) *> Clone for $ typename <$ ($ parm) *> { fn clone (& self) -> Self { $ typename { $ ($ copyfield : self .$ copyfield ,) * $ ($ field : self .$ field . clone () ,) * } } } } ; }
-    macro_rules ! expand_if { (@ bool [true] $ ($ body : tt) *) => { $ ($ body) * } ; (@ bool [false] $ ($ body : tt) *) => { } ; (@ nonempty [$ ($ if_present : tt) +] $ ($ body : tt) *) => { $ ($ body) * } ; (@ nonempty [] $ ($ body : tt) *) => { } ; }
 }
 #[macro_use]
 mod private {
@@ -69,14 +64,6 @@ mod aliases {
     pub type Ix5 = Dim<[Ix; 5]>;
     pub type Ix6 = Dim<[Ix; 6]>;
     pub type IxDyn = Dim<IxDynImpl>;
-    pub type Array0<A> = Array<A, Ix0>;
-    pub type Array1<A> = Array<A, Ix1>;
-    pub type Array2<A> = Array<A, Ix2>;
-    pub type Array3<A> = Array<A, Ix3>;
-    pub type Array4<A> = Array<A, Ix4>;
-    pub type Array5<A> = Array<A, Ix5>;
-    pub type Array6<A> = Array<A, Ix6>;
-    pub type ArrayD<A> = Array<A, IxDyn>;
     pub type ArrayView1<'a, A> = ArrayView<'a, A, Ix1>;
     pub type ArrayViewMut1<'a, A> = ArrayViewMut<'a, A, Ix1>;
 }
@@ -102,15 +89,6 @@ mod argument_traits {
     pub trait AssignElem<T> {
         fn assign_elem(self, input: T);
     }
-}
-mod arraytraits {
-    use crate::imp_prelude::*;
-    use crate::{
-        dimension,
-        iter::{Iter, IterMut},
-        numeric_util, FoldWhile, NdIndex, Zip,
-    };
-    use alloc::vec::Vec;
 }
 pub use crate::argument_traits::AssignElem;
 mod data_repr {
@@ -246,30 +224,6 @@ mod data_traits {
             unimplemented!()
         }
     }
-    unsafe impl<A> RawData for RawViewRepr<*const A> {
-        type Elem = A;
-        #[inline]
-        fn _data_slice(&self) -> Option<&[A]> {
-            unimplemented!()
-        }
-        #[inline(always)]
-        fn _is_pointer_inbounds(&self, _ptr: *const Self::Elem) -> bool {
-            unimplemented!()
-        }
-        private_impl! {}
-    }
-    unsafe impl<A> RawData for RawViewRepr<*mut A> {
-        type Elem = A;
-        #[inline]
-        fn _data_slice(&self) -> Option<&[A]> {
-            unimplemented!()
-        }
-        #[inline(always)]
-        fn _is_pointer_inbounds(&self, _ptr: *const Self::Elem) -> bool {
-            unimplemented!()
-        }
-        private_impl! {}
-    }
     unsafe impl<A> RawData for OwnedArcRepr<A> {
         type Elem = A;
         fn _data_slice(&self) -> Option<&[A]> {
@@ -279,38 +233,6 @@ mod data_traits {
             unimplemented!()
         }
         private_impl! {}
-    }
-    unsafe impl<A> RawDataMut for OwnedArcRepr<A>
-    where
-        A: Clone,
-    {
-        fn try_ensure_unique<D>(self_: &mut ArrayBase<Self, D>)
-        where
-            Self: Sized,
-            D: Dimension,
-        {
-            unimplemented!()
-        }
-        fn try_is_unique(&mut self) -> Option<bool> {
-            unimplemented!()
-        }
-    }
-    unsafe impl<A> Data for OwnedArcRepr<A> {
-        fn into_owned<D>(mut self_: ArrayBase<Self, D>) -> Array<Self::Elem, D>
-        where
-            A: Clone,
-            D: Dimension,
-        {
-            unimplemented!()
-        }
-        fn try_into_owned_nocopy<D>(
-            self_: ArrayBase<Self, D>,
-        ) -> Result<Array<Self::Elem, D>, ArrayBase<Self, D>>
-        where
-            D: Dimension,
-        {
-            unimplemented!()
-        }
     }
     unsafe impl<A> RawData for OwnedRepr<A> {
         type Elem = A;
@@ -324,20 +246,6 @@ mod data_traits {
             self_ptr >= ptr && self_ptr <= end
         }
         private_impl! {}
-    }
-    unsafe impl<A> RawDataMut for OwnedRepr<A> {
-        #[inline]
-        fn try_ensure_unique<D>(_: &mut ArrayBase<Self, D>)
-        where
-            Self: Sized,
-            D: Dimension,
-        {
-            unimplemented!()
-        }
-        #[inline]
-        fn try_is_unique(&mut self) -> Option<bool> {
-            unimplemented!()
-        }
     }
     unsafe impl<A> Data for OwnedRepr<A> {
         #[inline]
@@ -384,11 +292,6 @@ mod data_traits {
             unimplemented!()
         }
         private_impl! {}
-    }
-    unsafe impl<'a, A> RawDataClone for ViewRepr<&'a A> {
-        unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>) {
-            unimplemented!()
-        }
     }
     unsafe impl<'a, A> RawData for ViewRepr<&'a mut A> {
         type Elem = A;
@@ -437,7 +340,6 @@ pub use crate::data_traits::{
 };
 pub use crate::iterators::iter;
 mod error {
-    use std::fmt;
     #[derive(Clone)]
     pub struct ShapeError {
         repr: ErrorKind,
@@ -464,26 +366,11 @@ mod extension {
         pub(crate) fn nonnull_from_vec_data<T>(v: &mut Vec<T>) -> NonNull<T> {
             unsafe { NonNull::new_unchecked(v.as_mut_ptr()) }
         }
-        #[inline]
-        pub(crate) unsafe fn nonnull_debug_checked_from_ptr<T>(ptr: *mut T) -> NonNull<T> {
-            unimplemented!()
-        }
-    }
-}
-mod geomspace {
-    #![cfg(feature = "std")]
-    pub struct Geomspace<F> {
-        sign: F,
-        start: F,
-        step: F,
-        index: usize,
-        len: usize,
     }
 }
 mod indexes {
     use super::Dimension;
     use crate::dimension::IntoDimension;
-    use crate::zip::Offset;
     use crate::{ArrayBase, Data};
     #[derive(Clone)]
     pub struct IndicesIter<D> {
@@ -566,32 +453,14 @@ mod indexes {
         start: D,
         dim: D,
     }
-    #[derive(Copy, Clone, Debug)]
-    pub struct IndexPtr<D> {
-        index: D,
-    }
     #[derive(Clone)]
     pub struct IndicesIterF<D> {
         dim: D,
         index: D,
         has_remaining: bool,
     }
-    impl<D> Iterator for IndicesIterF<D>
-    where
-        D: Dimension,
-    {
-        type Item = D::Pattern;
-        #[inline]
-        fn next(&mut self) -> Option<Self::Item> {
-            unimplemented!()
-        }
-    }
 }
 mod iterators {
-    #[macro_use]
-    mod macros {
-        macro_rules ! impl_ndproducer { ([$ ($ typarm : tt) *] [Clone => $ ($ cloneparm : tt) *] $ typename : ident { $ base : ident , $ ($ fieldname : ident ,) * } $ fulltype : ty { $ (type $ atyn : ident = $ atyv : ty ;) * unsafe fn item (&$ self_ : ident , $ ptr : pat) { $ refexpr : expr } }) => { impl <$ ($ typarm) *> NdProducer for $ fulltype { $ (type $ atyn = $ atyv ;) * type Ptr = * mut A ; type Stride = isize ; fn raw_dim (& self) -> D { self .$ base . raw_dim () } fn layout (& self) -> Layout { self .$ base . layout () } fn as_ptr (& self) -> * mut A { self .$ base . as_ptr () as * mut _ } fn contiguous_stride (& self) -> isize { self .$ base . contiguous_stride () } unsafe fn as_ref (&$ self_ , $ ptr : * mut A) -> Self :: Item { $ refexpr } unsafe fn uget_ptr (& self , i : & Self :: Dim) -> * mut A { self .$ base . uget_ptr (i) } fn stride_of (& self , axis : Axis) -> isize { self .$ base . stride_of (axis) } fn split_at (self , axis : Axis , index : usize) -> (Self , Self) { let (a , b) = self .$ base . split_at (axis , index) ; ($ typename { $ base : a , $ ($ fieldname : self .$ fieldname . clone () ,) * } , $ typename { $ base : b , $ ($ fieldname : self .$ fieldname ,) * }) } private_impl ! { } } expand_if ! (@ nonempty [$ ($ cloneparm) *] impl <$ ($ cloneparm) *> Clone for $ fulltype { fn clone (& self) -> Self { $ typename { $ base : self . base . clone () , $ ($ fieldname : self .$ fieldname . clone () ,) * } } }) ; } }
-    }
     mod chunks {
         use crate::imp_prelude::*;
         use crate::ElementsBase;
@@ -621,15 +490,9 @@ mod iterators {
     }
     pub mod iter {
         pub use crate::indexes::{Indices, IndicesIter};
-        pub use crate::iterators::{
-            AxisChunksIter, AxisChunksIterMut, AxisIter, AxisIterMut, ExactChunks, ExactChunksIter,
-            ExactChunksIterMut, ExactChunksMut, IndexedIter, IndexedIterMut, Iter, IterMut, Lanes,
-            LanesIter, LanesIterMut, LanesMut, Windows,
-        };
     }
     mod lanes {
         use crate::imp_prelude::*;
-        use crate::{Layout, NdProducer};
         pub struct Lanes<'a, A, D> {
             base: ArrayView<'a, A, D>,
             inner_len: Ix,
@@ -654,7 +517,6 @@ mod iterators {
     pub use self::windows::Windows;
     use super::{ArrayBase, ArrayView, ArrayViewMut, Axis, Data, NdProducer, RemoveAxis};
     use super::{Dimension, Ix, Ixs};
-    use crate::Ix1;
     use alloc::vec::Vec;
     use std::marker::PhantomData;
     use std::ptr;
@@ -664,13 +526,6 @@ mod iterators {
         dim: D,
         strides: D,
         index: Option<D>,
-    }
-    impl<A, D: Dimension> Iterator for Baseiter<A, D> {
-        type Item = *mut A;
-        #[inline]
-        fn next(&mut self) -> Option<*mut A> {
-            unimplemented!()
-        }
     }
     clone_bounds ! ([A , D : Clone] Baseiter [A , D] { @ copy { ptr , } dim , strides , index , });
     clone_bounds ! (['a , A , D : Clone] ElementsBase ['a , A , D] { @ copy { life , } inner , });
@@ -696,20 +551,6 @@ mod iterators {
     #[derive(Clone)]
     pub struct IndexedIter<'a, A, D>(ElementsBase<'a, A, D>);
     pub struct IndexedIterMut<'a, A, D>(ElementsBaseMut<'a, A, D>);
-    impl<'a, A, D: Dimension> Iterator for Iter<'a, A, D> {
-        type Item = &'a A;
-        #[inline]
-        fn next(&mut self) -> Option<&'a A> {
-            unimplemented!()
-        }
-    }
-    impl<'a, A, D: Dimension> Iterator for IterMut<'a, A, D> {
-        type Item = &'a mut A;
-        #[inline]
-        fn next(&mut self) -> Option<&'a mut A> {
-            unimplemented!()
-        }
-    }
     pub struct LanesIter<'a, A, D> {
         inner_len: Ix,
         inner_stride: Ixs,
@@ -731,41 +572,14 @@ mod iterators {
         inner_strides: D,
         ptr: *mut A,
     }
-    impl<A, D> Iterator for AxisIterCore<A, D>
-    where
-        D: Dimension,
-    {
-        type Item = *mut A;
-        fn next(&mut self) -> Option<Self::Item> {
-            unimplemented!()
-        }
-    }
     #[derive(Debug)]
     pub struct AxisIter<'a, A, D> {
         iter: AxisIterCore<A, D>,
         life: PhantomData<&'a A>,
     }
-    impl<'a, A, D> Iterator for AxisIter<'a, A, D>
-    where
-        D: Dimension,
-    {
-        type Item = ArrayView<'a, A, D>;
-        fn next(&mut self) -> Option<Self::Item> {
-            unimplemented!()
-        }
-    }
     pub struct AxisIterMut<'a, A, D> {
         iter: AxisIterCore<A, D>,
         life: PhantomData<&'a mut A>,
-    }
-    impl<'a, A, D> Iterator for AxisIterMut<'a, A, D>
-    where
-        D: Dimension,
-    {
-        type Item = ArrayViewMut<'a, A, D>;
-        fn next(&mut self) -> Option<Self::Item> {
-            unimplemented!()
-        }
     }
     pub struct AxisChunksIter<'a, A, D> {
         iter: AxisIterCore<A, D>,
@@ -781,7 +595,6 @@ mod iterators {
     }
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait TrustedIterator {}
-    use crate::indexes::IndicesIterF;
     use crate::iter::IndicesIter;
     unsafe impl<D> TrustedIterator for IndicesIter<D> where D: Dimension {}
     pub fn to_vec_mapped<I, F, B>(iter: I, mut f: F) -> Vec<B>
@@ -815,15 +628,7 @@ mod layout {
     }
     #[derive(Copy, Clone)]
     pub struct Layout(u32);
-    impl Layout {}
 }
-mod linspace {
-    #![cfg(feature = "std")]
-}
-mod logspace {
-    #![cfg(feature = "std")]
-}
-mod numeric_util {}
 mod order {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     #[non_exhaustive]
@@ -838,7 +643,6 @@ mod partial {
         ptr: *mut T,
         pub(crate) len: usize,
     }
-    impl<T> Partial<T> {}
 }
 mod shape_builder {
     use crate::dimension::IntoDimension;
@@ -1037,18 +841,6 @@ mod split_at {
             unimplemented!()
         }
     }
-    impl<D> SplitAt for D
-    where
-        D: Dimension,
-    {
-        fn split_at(self, axis: Axis, index: Ix) -> (Self, Self) {
-            unimplemented!()
-        }
-    }
-}
-mod low_level_util {
-    #[must_use]
-    pub(crate) struct AbortIfPanic(pub(crate) &'static &'static str);
 }
 #[macro_use]
 mod zip {
@@ -1093,44 +885,9 @@ mod zip {
             }
             private_impl! {}
         }
-        impl<'a, A, D: Dimension> NdProducer for ArrayView<'a, A, D> {
-            type Item = &'a A;
-            type Dim = D;
-            type Ptr = *mut A;
-            type Stride = isize;
-            private_impl! {}
-            fn raw_dim(&self) -> Self::Dim {
-                unimplemented!()
-            }
-            fn as_ptr(&self) -> *mut A {
-                unimplemented!()
-            }
-            fn layout(&self) -> Layout {
-                unimplemented!()
-            }
-            unsafe fn as_ref(&self, ptr: *mut A) -> Self::Item {
-                unimplemented!()
-            }
-            unsafe fn uget_ptr(&self, i: &Self::Dim) -> *mut A {
-                unimplemented!()
-            }
-            fn stride_of(&self, axis: Axis) -> isize {
-                unimplemented!()
-            }
-            #[inline(always)]
-            fn contiguous_stride(&self) -> Self::Stride {
-                unimplemented!()
-            }
-            fn split_at(self, axis: Axis, index: usize) -> (Self, Self) {
-                unimplemented!()
-            }
-        }
     }
     pub use self::ndproducer::{IntoNdProducer, NdProducer, Offset};
     use crate::imp_prelude::*;
-    use crate::partial::Partial;
-    use crate::split_at::{SplitAt, SplitPreference};
-    use crate::AssignElem;
     use crate::IntoDimension;
     use crate::Layout;
     trait Broadcast<E>
@@ -1140,17 +897,6 @@ mod zip {
         type Output: NdProducer<Dim = E::Dim>;
         fn broadcast_unwrap(self, shape: E) -> Self::Output;
         private_decl! {}
-    }
-    impl<'a, A, D, E> Broadcast<E> for ArrayView<'a, A, D>
-    where
-        E: IntoDimension,
-        D: Dimension,
-    {
-        type Output = ArrayView<'a, A, E::Dim>;
-        fn broadcast_unwrap(self, shape: E) -> Self::Output {
-            unimplemented!()
-        }
-        private_impl! {}
     }
     trait ZippableTuple: Sized {
         type Item;
@@ -1172,16 +918,6 @@ mod zip {
         layout: Layout,
         layout_tendency: i32,
     }
-    #[inline]
-    fn zip_dimension_check<D, P>(dimension: &D, part: &P)
-    where
-        D: Dimension,
-        P: NdProducer<Dim = D>,
-    {
-        unimplemented!()
-    }
-    impl<Parts, D> Zip<Parts, D> where D: Dimension {}
-    impl<P, D> Zip<P, D> where D: Dimension {}
     trait OffsetTuple {
         type Args;
         unsafe fn stride_offset(self, stride: Self::Args, index: usize) -> Self;
@@ -1189,9 +925,6 @@ mod zip {
     macro_rules ! offset_impl { ($ ([$ ($ param : ident) *] [$ ($ q : ident) *] ,) +) => { $ (# [allow (non_snake_case)] impl <$ ($ param : Offset) ,*> OffsetTuple for ($ ($ param ,) *) { type Args = ($ ($ param :: Stride ,) *) ; unsafe fn stride_offset (self , stride : Self :: Args , index : usize) -> Self { let ($ ($ param ,) *) = self ; let ($ ($ q ,) *) = stride ; ($ (Offset :: stride_offset ($ param , $ q , index) ,) *) } }) + } }
     offset_impl! { [A] [a] , [A B] [a b] , [A B C] [a b c] , [A B C D] [a b c d] , [A B C D E] [a b c d e] , [A B C D E F] [a b c d e f] , }
     macro_rules ! zipt_impl { ($ ([$ ($ p : ident) *] [$ ($ q : ident) *] ,) +) => { $ (# [allow (non_snake_case)] impl < Dim : Dimension , $ ($ p : NdProducer < Dim = Dim >) ,*> ZippableTuple for ($ ($ p ,) *) { type Item = ($ ($ p :: Item ,) *) ; type Ptr = ($ ($ p :: Ptr ,) *) ; type Dim = Dim ; type Stride = ($ ($ p :: Stride ,) *) ; fn stride_of (& self , index : usize) -> Self :: Stride { let ($ (ref $ p ,) *) = * self ; ($ ($ p . stride_of (Axis (index)) ,) *) } fn contiguous_stride (& self) -> Self :: Stride { let ($ (ref $ p ,) *) = * self ; ($ ($ p . contiguous_stride () ,) *) } fn as_ptr (& self) -> Self :: Ptr { let ($ (ref $ p ,) *) = * self ; ($ ($ p . as_ptr () ,) *) } unsafe fn as_ref (& self , ptr : Self :: Ptr) -> Self :: Item { let ($ (ref $ q ,) *) = * self ; let ($ ($ p ,) *) = ptr ; ($ ($ q . as_ref ($ p) ,) *) } unsafe fn uget_ptr (& self , i : & Self :: Dim) -> Self :: Ptr { let ($ (ref $ p ,) *) = * self ; ($ ($ p . uget_ptr (i) ,) *) } fn split_at (self , axis : Axis , index : Ix) -> (Self , Self) { let ($ ($ p ,) *) = self ; let ($ ($ p ,) *) = ($ ($ p . split_at (axis , index) ,) *) ; (($ ($ p . 0 ,) *) , ($ ($ p . 1 ,) *)) } }) + } }
-    zipt_impl! { [A] [a] , [A B] [a b] , [A B C] [a b c] , [A B C D] [a b c d] , [A B C D E] [a b c d e] , [A B C D E F] [a b c d e f] , }
-    macro_rules ! map_impl { ($ ([$ notlast : ident $ ($ p : ident) *] ,) +) => { $ (# [allow (non_snake_case)] impl < D , $ ($ p) ,*> Zip < ($ ($ p ,) *) , D > where D : Dimension , $ ($ p : NdProducer < Dim = D > ,) * { # [doc = " Apply a function to all elements of the input arrays,"] # [doc = " visiting elements in lock step."] pub fn for_each < F > (mut self , mut function : F) where F : FnMut ($ ($ p :: Item) ,*) { self . for_each_core (() , move | () , args | { let ($ ($ p ,) *) = args ; FoldWhile :: Continue (function ($ ($ p) ,*)) }) ; } # [doc = " Apply a function to all elements of the input arrays,"] # [doc = " visiting elements in lock step."] # [deprecated (note = "Renamed to .for_each()" , since = "0.15.0")] pub fn apply < F > (self , function : F) where F : FnMut ($ ($ p :: Item) ,*) { self . for_each (function) } # [doc = " Apply a fold function to all elements of the input arrays,"] # [doc = " visiting elements in lock step."] # [doc = ""] # [doc = " # Example"] # [doc = ""] # [doc = " The expression `tr(AᵀB)` can be more efficiently computed as"] # [doc = " the equivalent expression `∑ᵢⱼ(A∘B)ᵢⱼ` (i.e. the sum of the"] # [doc = " elements of the entry-wise product). It would be possible to"] # [doc = " evaluate this expression by first computing the entry-wise"] # [doc = " product, `A∘B`, and then computing the elementwise sum of that"] # [doc = " product, but it's possible to do this in a single loop (and"] # [doc = " avoid an extra heap allocation if `A` and `B` can't be"] # [doc = " consumed) by using `Zip`:"] # [doc = ""] # [doc = " ```"] # [doc = " use ndarray::{array, Zip};"] # [doc = ""] # [doc = " let a = array![[1, 5], [3, 7]];"] # [doc = " let b = array![[2, 4], [8, 6]];"] # [doc = ""] # [doc = " // Without using `Zip`. This involves two loops and an extra"] # [doc = " // heap allocation for the result of `&a * &b`."] # [doc = " let sum_prod_nonzip = (&a * &b).sum();"] # [doc = " // Using `Zip`. This is a single loop without any heap allocations."] # [doc = " let sum_prod_zip = Zip::from(&a).and(&b).fold(0, |acc, a, b| acc + a * b);"] # [doc = ""] # [doc = " assert_eq!(sum_prod_nonzip, sum_prod_zip);"] # [doc = " ```"] pub fn fold < F , Acc > (mut self , acc : Acc , mut function : F) -> Acc where F : FnMut (Acc , $ ($ p :: Item) ,*) -> Acc , { self . for_each_core (acc , move | acc , args | { let ($ ($ p ,) *) = args ; FoldWhile :: Continue (function (acc , $ ($ p) ,*)) }) . into_inner () } # [doc = " Apply a fold function to the input arrays while the return"] # [doc = " value is `FoldWhile::Continue`, visiting elements in lock step."] # [doc = ""] pub fn fold_while < F , Acc > (mut self , acc : Acc , mut function : F) -> FoldWhile < Acc > where F : FnMut (Acc , $ ($ p :: Item) ,*) -> FoldWhile < Acc > { self . for_each_core (acc , move | acc , args | { let ($ ($ p ,) *) = args ; function (acc , $ ($ p) ,*) }) } # [doc = " Tests if every element of the iterator matches a predicate."] # [doc = ""] # [doc = " Returns `true` if `predicate` evaluates to `true` for all elements."] # [doc = " Returns `true` if the input arrays are empty."] # [doc = ""] # [doc = " Example:"] # [doc = ""] # [doc = " ```"] # [doc = " use ndarray::{array, Zip};"] # [doc = " let a = array![1, 2, 3];"] # [doc = " let b = array![1, 4, 9];"] # [doc = " assert!(Zip::from(&a).and(&b).all(|&a, &b| a * a == b));"] # [doc = " ```"] pub fn all < F > (mut self , mut predicate : F) -> bool where F : FnMut ($ ($ p :: Item) ,*) -> bool { ! self . for_each_core (() , move | _ , args | { let ($ ($ p ,) *) = args ; if predicate ($ ($ p) ,*) { FoldWhile :: Continue (()) } else { FoldWhile :: Done (()) } }) . is_done () } expand_if ! (@ bool [$ notlast] # [doc = " Include the producer `p` in the Zip."] # [doc = ""] # [doc = " ***Panics*** if `p`’s shape doesn’t match the Zip’s exactly."] pub fn and < P > (self , p : P) -> Zip < ($ ($ p ,) * P :: Output ,) , D > where P : IntoNdProducer < Dim = D >, { let part = p . into_producer () ; zip_dimension_check (& self . dimension , & part) ; self . build_and (part) } # [doc = " Include the producer `p` in the Zip."] # [doc = ""] # [doc = " ## Safety"] # [doc = ""] # [doc = " The caller must ensure that the producer's shape is equal to the Zip's shape."] # [doc = " Uses assertions when debug assertions are enabled."] # [allow (unused)] pub (crate) unsafe fn and_unchecked < P > (self , p : P) -> Zip < ($ ($ p ,) * P :: Output ,) , D > where P : IntoNdProducer < Dim = D >, { # [cfg (debug_assertions)] { self . and (p) } # [cfg (not (debug_assertions))] { self . build_and (p . into_producer ()) } } # [doc = " Include the producer `p` in the Zip, broadcasting if needed."] # [doc = ""] # [doc = " If their shapes disagree, `rhs` is broadcast to the shape of `self`."] # [doc = ""] # [doc = " ***Panics*** if broadcasting isn’t possible."] pub fn and_broadcast <'a , P , D2 , Elem > (self , p : P) -> Zip < ($ ($ p ,) * ArrayView <'a , Elem , D >,) , D > where P : IntoNdProducer < Dim = D2 , Output = ArrayView <'a , Elem , D2 >, Item =&'a Elem >, D2 : Dimension , { let part = p . into_producer () . broadcast_unwrap (self . dimension . clone ()) ; self . build_and (part) } fn build_and < P > (self , part : P) -> Zip < ($ ($ p ,) * P ,) , D > where P : NdProducer < Dim = D >, { let part_layout = part . layout () ; let ($ ($ p ,) *) = self . parts ; Zip { parts : ($ ($ p ,) * part ,) , layout : self . layout . intersect (part_layout) , dimension : self . dimension , layout_tendency : self . layout_tendency + part_layout . tendency () , } } # [doc = " Map and collect the results into a new array, which has the same size as the"] # [doc = " inputs."] # [doc = ""] # [doc = " If all inputs are c- or f-order respectively, that is preserved in the output."] pub fn map_collect < R > (self , f : impl FnMut ($ ($ p :: Item ,) *) -> R) -> Array < R , D > { self . map_collect_owned (f) } pub (crate) fn map_collect_owned < S , R > (self , f : impl FnMut ($ ($ p :: Item ,) *) -> R) -> ArrayBase < S , D > where S : DataOwned < Elem = R > { let shape = self . dimension . clone () . set_f (self . prefer_f ()) ; let output = < ArrayBase < S , D >>:: build_uninit (shape , | output | { unsafe { let output_view = output . into_raw_view_mut () . cast ::< R > () ; self . and (output_view) . collect_with_partial (f) . release_ownership () ; } }) ; unsafe { output . assume_init () } } # [doc = " Map and collect the results into a new array, which has the same size as the"] # [doc = " inputs."] # [doc = ""] # [doc = " If all inputs are c- or f-order respectively, that is preserved in the output."] # [deprecated (note = "Renamed to .map_collect()" , since = "0.15.0")] pub fn apply_collect < R > (self , f : impl FnMut ($ ($ p :: Item ,) *) -> R) -> Array < R , D > { self . map_collect (f) } # [doc = " Map and assign the results into the producer `into`, which should have the same"] # [doc = " size as the other inputs."] # [doc = ""] # [doc = " The producer should have assignable items as dictated by the `AssignElem` trait,"] # [doc = " for example `&mut R`."] pub fn map_assign_into < R , Q > (self , into : Q , mut f : impl FnMut ($ ($ p :: Item ,) *) -> R) where Q : IntoNdProducer < Dim = D >, Q :: Item : AssignElem < R > { self . and (into) . for_each (move |$ ($ p ,) * output_ | { output_ . assign_elem (f ($ ($ p) ,*)) ; }) ; } # [doc = " Map and assign the results into the producer `into`, which should have the same"] # [doc = " size as the other inputs."] # [doc = ""] # [doc = " The producer should have assignable items as dictated by the `AssignElem` trait,"] # [doc = " for example `&mut R`."] # [deprecated (note = "Renamed to .map_assign_into()" , since = "0.15.0")] pub fn apply_assign_into < R , Q > (self , into : Q , f : impl FnMut ($ ($ p :: Item ,) *) -> R) where Q : IntoNdProducer < Dim = D >, Q :: Item : AssignElem < R > { self . map_assign_into (into , f) }) ; # [doc = " Split the `Zip` evenly in two."] # [doc = ""] # [doc = " It will be split in the way that best preserves element locality."] pub fn split (self) -> (Self , Self) { debug_assert_ne ! (self . size () , 0 , "Attempt to split empty zip") ; debug_assert_ne ! (self . size () , 1 , "Attempt to split zip with 1 elem") ; SplitPreference :: split (self) } } expand_if ! (@ bool [$ notlast] # [allow (non_snake_case)] impl < D , PLast , R , $ ($ p) ,*> Zip < ($ ($ p ,) * PLast) , D > where D : Dimension , $ ($ p : NdProducer < Dim = D > ,) * PLast : NdProducer < Dim = D , Item = * mut R , Ptr = * mut R , Stride = isize >, { # [doc = " The inner workings of map_collect and par_map_collect"] # [doc = ""] # [doc = " Apply the function and collect the results into the output (last producer)"] # [doc = " which should be a raw array view; a Partial that owns the written"] # [doc = " elements is returned."] # [doc = ""] # [doc = " Elements will be overwritten in place (in the sense of std::ptr::write)."] # [doc = ""] # [doc = " ## Safety"] # [doc = ""] # [doc = " The last producer is a RawArrayViewMut and must be safe to write into."] # [doc = " The producer must be c- or f-contig and have the same layout tendency"] # [doc = " as the whole Zip."] # [doc = ""] # [doc = " The returned Partial's proxy ownership of the elements must be handled,"] # [doc = " before the array the raw view points to realizes its ownership."] pub (crate) unsafe fn collect_with_partial < F > (self , mut f : F) -> Partial < R > where F : FnMut ($ ($ p :: Item ,) *) -> R { let (.., ref output) = & self . parts ; if cfg ! (debug_assertions) { let out_layout = output . layout () ; assert ! (out_layout . is (Layout :: CORDER | Layout :: FORDER)) ; assert ! ((self . layout_tendency <= 0 && out_layout . tendency () <= 0) || (self . layout_tendency >= 0 && out_layout . tendency () >= 0) , "layout tendency violation for self layout {:?}, output layout {:?},\
-                            output shape {:?}" , self . layout , out_layout , output . raw_dim ()) ; } let mut partial = Partial :: new (output . as_ptr ()) ; let partial_len = & mut partial . len ; self . for_each (move |$ ($ p ,) * output_elem : * mut R | { output_elem . write (f ($ ($ p) ,*)) ; if std :: mem :: needs_drop ::< R > () { * partial_len += 1 ; } }) ; partial } }) ; impl < D , $ ($ p) ,*> SplitPreference for Zip < ($ ($ p ,) *) , D > where D : Dimension , $ ($ p : NdProducer < Dim = D > ,) * { fn can_split (& self) -> bool { self . size () > 1 } fn split_preference (& self) -> (Axis , usize) { let axis = self . max_stride_axis () ; let index = self . len_of (axis) / 2 ; (axis , index) } } impl < D , $ ($ p) ,*> SplitAt for Zip < ($ ($ p ,) *) , D > where D : Dimension , $ ($ p : NdProducer < Dim = D > ,) * { fn split_at (self , axis : Axis , index : usize) -> (Self , Self) { let (p1 , p2) = self . parts . split_at (axis , index) ; let (d1 , d2) = self . dimension . split_at (axis , index) ; (Zip { dimension : d1 , layout : self . layout , parts : p1 , layout_tendency : self . layout_tendency , } , Zip { dimension : d2 , layout : self . layout , parts : p2 , layout_tendency : self . layout_tendency , }) } }) + } }
     #[derive(Debug, Copy, Clone)]
     pub enum FoldWhile<T> {
         Continue(T),
@@ -1233,20 +966,6 @@ mod dimension {
             pub axis: Axis,
             pub len: usize,
             pub stride: isize,
-        }
-        impl<'a, D> Iterator for Axes<'a, D>
-        where
-            D: Dimension,
-        {
-            type Item = AxisDescription;
-            fn next(&mut self) -> Option<Self::Item> {
-                unimplemented!()
-            }
-        }
-        trait IncOps: Copy {
-            fn post_inc(&mut self) -> Self;
-            fn post_dec(&mut self) -> Self;
-            fn pre_dec(&mut self) -> Self;
         }
     }
     mod axis {
@@ -2156,14 +1875,6 @@ mod dimension {
         Ok(())
     }
     #[inline]
-    pub fn stride_offset_checked(dim: &[Ix], strides: &[Ix], index: &[Ix]) -> Option<isize> {
-        unimplemented!()
-    }
-    pub trait DimensionExt {
-        fn axis(&self, axis: Axis) -> Ix;
-        fn set_axis(&mut self, axis: Axis, value: Ix);
-    }
-    #[inline]
     pub fn abs_index(len: Ix, index: Ixs) -> Ix {
         unimplemented!()
     }
@@ -2308,11 +2019,9 @@ mod impl_constructors {
     use crate::imp_prelude::*;
     use crate::indices;
     use crate::iterators::to_vec_mapped;
-    use crate::iterators::TrustedIterator;
     use crate::StrideShape;
     use alloc::vec::Vec;
     use rawpointer::PointerExt;
-    use std::mem::MaybeUninit;
     #[cfg(not(debug_assertions))]
     #[allow(clippy::match_wild_err_arm)]
     macro_rules ! size_of_shape_checked_unwrap { ($ dim : expr) => { match dimension :: size_of_shape_checked ($ dim) { Ok (sz) => sz , Err (_) => { panic ! ("ndarray: Shape too large, product of non-zero axis lengths overflows isize") } } } ; }
@@ -2366,16 +2075,7 @@ mod impl_constructors {
     }
 }
 mod impl_methods {
-    use crate::dimension::IntoDimension;
-    use crate::dimension::{
-        abs_index, axes_of, do_slice, merge_axes, move_min_stride_axis_to_last,
-        offset_from_low_addr_ptr_to_logical_ptr, size_of_shape_checked, stride_offset, Axes,
-    };
     use crate::imp_prelude::*;
-    use crate::iter::{
-        AxisChunksIter, AxisChunksIterMut, AxisIter, AxisIterMut, ExactChunks, ExactChunksMut,
-        IndexedIter, IndexedIterMut, Iter, IterMut, Lanes, LanesMut, Windows,
-    };
     impl<A, S, D> ArrayBase<S, D>
     where
         S: RawData<Elem = A>,
@@ -2389,26 +2089,4 @@ mod impl_methods {
             self.data._is_pointer_inbounds(self.as_ptr())
         }
     }
-}
-mod impl_special_element_types {
-    use crate::imp_prelude::*;
-    use crate::RawDataSubst;
-    use std::mem::MaybeUninit;
-}
-mod impl_ops {}
-mod impl_views {
-    mod constructors {
-        use crate::imp_prelude::*;
-        use crate::{is_aligned, StrideShape};
-        use std::ptr::NonNull;
-    }
-    mod indexing {}
-}
-mod impl_raw_views {
-    use crate::imp_prelude::*;
-    use crate::shape_builder::{StrideShape, Strides};
-    use std::ptr::NonNull;
-}
-pub(crate) fn is_aligned<T>(ptr: *const T) -> bool {
-    unimplemented!()
 }
