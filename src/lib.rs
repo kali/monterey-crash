@@ -84,7 +84,6 @@ mod itertools {
     }
     macro_rules ! izip { (@ closure $ p : pat => $ tup : expr) => { |$ p | $ tup } ; (@ closure $ p : pat => ($ ($ tup : tt) *) , $ _iter : expr $ (, $ tail : expr) *) => { izip ! (@ closure ($ p , b) => ($ ($ tup) *, b) $ (, $ tail) *) } ; ($ first : expr $ (,) *) => { IntoIterator :: into_iter ($ first) } ; ($ first : expr , $ second : expr $ (,) *) => { izip ! ($ first) . zip ($ second) } ; ($ first : expr $ (, $ rest : expr) * $ (,) *) => { izip ! ($ first) $ (. zip ($ rest)) * . map (izip ! (@ closure a => (a) $ (, $ rest) *)) } ; }
 }
-mod argument_traits {}
 mod data_repr {
     use crate::extension::nonnull;
     use alloc::borrow::ToOwned;
@@ -449,21 +448,8 @@ mod indexes {
     }
 }
 mod iterators {
-    mod chunks {
-        use crate::imp_prelude::*;
-        use crate::ElementsBase;
-        use crate::ElementsBaseMut;
-        type BaseProducerRef<'a, A, D> = ArrayView<'a, A, D>;
-        type BaseProducerMut<'a, A, D> = ArrayViewMut<'a, A, D>;
-    }
     pub mod iter {
         pub use crate::indexes::{Indices, IndicesIter};
-    }
-    mod lanes {
-        use crate::imp_prelude::*;
-    }
-    mod windows {
-        use crate::imp_prelude::*;
     }
     use super::{Dimension, Ix, Ixs};
     use alloc::vec::Vec;
@@ -477,7 +463,6 @@ mod iterators {
         index: Option<D>,
     }
     clone_bounds ! ([A , D : Clone] Baseiter [A , D] { @ copy { ptr , } dim , strides , index , });
-    clone_bounds ! (['a , A , D : Clone] ElementsBase ['a , A , D] { @ copy { life , } inner , });
     #[derive(Clone)]
     pub enum ElementsRepr<S, C> {
         Slice(S),
@@ -496,15 +481,6 @@ mod iterators {
     pub struct ElementsBaseMut<'a, A, D> {
         inner: Baseiter<A, D>,
         life: PhantomData<&'a mut A>,
-    }
-    #[derive(Debug)]
-    pub struct AxisIterCore<A, D> {
-        index: Ix,
-        end: Ix,
-        stride: Ixs,
-        inner_dim: D,
-        inner_strides: D,
-        ptr: *mut A,
     }
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait TrustedIterator {}
@@ -533,11 +509,6 @@ mod layout {
     mod layoutfmt {
         use super::Layout;
         use std::fmt;
-        impl fmt::Debug for Layout {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                unimplemented!()
-            }
-        }
     }
     #[derive(Copy, Clone)]
     pub struct Layout(u32);
@@ -735,60 +706,8 @@ mod zip {
     mod ndproducer {
         use crate::imp_prelude::*;
         use crate::Layout;
-        pub trait IntoNdProducer {
-            type Item;
-            type Dim: Dimension;
-            type Output: NdProducer<Dim = Self::Dim, Item = Self::Item>;
-            fn into_producer(self) -> Self::Output;
-        }
-        pub trait NdProducer {
-            type Item;
-            type Dim: Dimension;
-            type Ptr: Offset<Stride = Self::Stride>;
-            type Stride: Copy;
-            fn layout(&self) -> Layout;
-            fn raw_dim(&self) -> Self::Dim;
-            fn equal_dim(&self, dim: &Self::Dim) -> bool {
-                unimplemented!()
-            }
-            fn as_ptr(&self) -> Self::Ptr;
-            unsafe fn as_ref(&self, ptr: Self::Ptr) -> Self::Item;
-            unsafe fn uget_ptr(&self, i: &Self::Dim) -> Self::Ptr;
-            fn stride_of(&self, axis: Axis) -> <Self::Ptr as Offset>::Stride;
-            fn contiguous_stride(&self) -> Self::Stride;
-            fn split_at(self, axis: Axis, index: usize) -> (Self, Self)
-            where
-                Self: Sized;
-            private_decl! {}
-        }
-        pub trait Offset: Copy {
-            type Stride: Copy;
-            unsafe fn stride_offset(self, s: Self::Stride, index: usize) -> Self;
-            private_decl! {}
-        }
     }
-    pub use self::ndproducer::{IntoNdProducer, NdProducer, Offset};
-    use crate::imp_prelude::*;
-    use crate::IntoDimension;
     use crate::Layout;
-    #[derive(Debug, Clone)]
-    #[must_use = "zipping producers is lazy and does nothing unless consumed"]
-    pub struct Zip<Parts, D> {
-        parts: Parts,
-        dimension: D,
-        layout: Layout,
-        layout_tendency: i32,
-    }
-    trait OffsetTuple {
-        type Args;
-        unsafe fn stride_offset(self, stride: Self::Args, index: usize) -> Self;
-    }
-    macro_rules ! offset_impl { ($ ([$ ($ param : ident) *] [$ ($ q : ident) *] ,) +) => { $ (# [allow (non_snake_case)] impl <$ ($ param : Offset) ,*> OffsetTuple for ($ ($ param ,) *) { type Args = ($ ($ param :: Stride ,) *) ; unsafe fn stride_offset (self , stride : Self :: Args , index : usize) -> Self { let ($ ($ param ,) *) = self ; let ($ ($ q ,) *) = stride ; ($ (Offset :: stride_offset ($ param , $ q , index) ,) *) } }) + } }
-    #[derive(Debug, Copy, Clone)]
-    pub enum FoldWhile<T> {
-        Continue(T),
-        Done(T),
-    }
 }
 mod dimension {
     pub use self::axes::{Axes, AxisDescription};
@@ -801,7 +720,6 @@ mod dimension {
     pub use self::ops::DimAdd;
     pub use self::remove_axis::RemoveAxis;
     use crate::error::{from_kind, ErrorKind, ShapeError};
-    use crate::{Ix, Ixs, Slice, SliceInfoElem};
     use std::mem;
     mod axes {
         use crate::{Axis, Dimension, Ix, Ixs};
@@ -1534,7 +1452,6 @@ mod dimension {
         use crate::{
             Dim, Dimension, IntoDimension, Ix, Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn, IxDynImpl,
         };
-        use std::fmt::Debug;
         impl<'a> IntoDimension for &'a [Ix] {
             type Dim = IxDyn;
             fn into_dimension(self) -> Self::Dim {
@@ -1730,7 +1647,6 @@ mod dimension {
     }
 }
 pub use crate::layout::Layout;
-pub use crate::zip::{FoldWhile, IntoNdProducer, NdProducer, Zip};
 mod imp_prelude {
     pub use crate::prelude::*;
     pub use crate::{
