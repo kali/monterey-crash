@@ -17,11 +17,7 @@ pub use crate::dimension::IxDynImpl;
 pub use crate::dimension::{Axis, AxisDescription, Dimension, IntoDimension, RemoveAxis};
 pub use crate::dimension::{DimAdd, DimMax};
 pub use crate::indexes::{indices, indices_of};
-use crate::iterators::{ElementsBase, ElementsBaseMut, Iter, IterMut};
 pub use crate::shape_builder::{Shape, ShapeArg, ShapeBuilder, StrideShape};
-pub use crate::slice::{
-    MultiSliceArg, NewAxis, Slice, SliceArg, SliceInfo, SliceInfoElem, SliceNextDim,
-};
 use alloc::sync::Arc;
 use std::marker::PhantomData;
 #[macro_use]
@@ -443,25 +439,10 @@ mod iterators {
         strides: D,
         index: Option<D>,
     }
-    clone_bounds ! ([A , D : Clone] Baseiter [A , D] { @ copy { ptr , } dim , strides , index , });
     #[derive(Clone)]
     pub enum ElementsRepr<S, C> {
         Slice(S),
         Counted(C),
-    }
-    pub struct Iter<'a, A, D> {
-        inner: ElementsRepr<SliceIter<'a, A>, ElementsBase<'a, A, D>>,
-    }
-    pub struct ElementsBase<'a, A, D> {
-        inner: Baseiter<A, D>,
-        life: PhantomData<&'a A>,
-    }
-    pub struct IterMut<'a, A, D> {
-        inner: ElementsRepr<SliceIterMut<'a, A>, ElementsBaseMut<'a, A, D>>,
-    }
-    pub struct ElementsBaseMut<'a, A, D> {
-        inner: Baseiter<A, D>,
-        life: PhantomData<&'a mut A>,
     }
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait TrustedIterator {}
@@ -486,14 +467,7 @@ mod iterators {
         result
     }
 }
-mod layout {
-    mod layoutfmt {
-        use super::Layout;
-        use std::fmt;
-    }
-    #[derive(Copy, Clone)]
-    pub struct Layout(u32);
-}
+mod layout {}
 mod order {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     #[non_exhaustive]
@@ -614,81 +588,6 @@ mod shape_builder {
         type Dim: Dimension;
         fn into_shape_and_order(self) -> (Self::Dim, Option<Order>);
     }
-}
-#[macro_use]
-mod slice {
-    use crate::{ArrayViewMut, DimAdd, Dimension, Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn};
-    use std::marker::PhantomData;
-    #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-    pub struct Slice {
-        pub start: isize,
-        pub end: Option<isize>,
-        pub step: isize,
-    }
-    #[derive(Clone, Copy, Debug)]
-    pub struct NewAxis;
-    #[derive(Debug, PartialEq, Eq, Hash)]
-    pub enum SliceInfoElem {
-        Slice {
-            start: isize,
-            end: Option<isize>,
-            step: isize,
-        },
-        Index(isize),
-        NewAxis,
-    }
-    #[allow(clippy::missing_safety_doc)]
-    pub unsafe trait SliceArg<D: Dimension>: AsRef<[SliceInfoElem]> {
-        type OutDim: Dimension;
-        fn in_ndim(&self) -> usize;
-        fn out_ndim(&self) -> usize;
-        private_decl! {}
-    }
-    #[derive(Debug)]
-    pub struct SliceInfo<T, Din: Dimension, Dout: Dimension> {
-        in_dim: PhantomData<Din>,
-        out_dim: PhantomData<Dout>,
-        indices: T,
-    }
-    pub trait SliceNextDim {
-        type InDim: Dimension;
-        type OutDim: Dimension;
-        fn next_in_dim<D>(
-            &self,
-            _: PhantomData<D>,
-        ) -> PhantomData<<D as DimAdd<Self::InDim>>::Output>
-        where
-            D: Dimension + DimAdd<Self::InDim>,
-        {
-            unimplemented!()
-        }
-        fn next_out_dim<D>(
-            &self,
-            _: PhantomData<D>,
-        ) -> PhantomData<<D as DimAdd<Self::OutDim>>::Output>
-        where
-            D: Dimension + DimAdd<Self::OutDim>,
-        {
-            unimplemented!()
-        }
-    }
-    pub trait MultiSliceArg<'a, A, D>
-    where
-        A: 'a,
-        D: Dimension,
-    {
-        type Output;
-        fn multi_slice_move(&self, view: ArrayViewMut<'a, A, D>) -> Self::Output;
-        private_decl! {}
-    }
-}
-#[macro_use]
-mod zip {
-    mod ndproducer {
-        use crate::imp_prelude::*;
-        use crate::Layout;
-    }
-    use crate::Layout;
 }
 mod dimension {
     pub use self::axes::{Axes, AxisDescription};
@@ -1588,32 +1487,6 @@ mod dimension {
         }
         Ok(max_offset)
     }
-    pub(crate) fn can_index_slice<A, D: Dimension>(
-        data: &[A],
-        dim: &D,
-        strides: &D,
-    ) -> Result<(), ShapeError> {
-        let max_offset = max_abs_offset_check_overflow::<A, _>(dim, strides)?;
-        can_index_slice_impl(max_offset, data.len(), dim, strides)
-    }
-    fn can_index_slice_impl<D: Dimension>(
-        max_offset: usize,
-        data_len: usize,
-        dim: &D,
-        strides: &D,
-    ) -> Result<(), ShapeError> {
-        let is_empty = dim.slice().iter().any(|&d| d == 0);
-        if is_empty && max_offset > data_len {
-            unimplemented!()
-        }
-        if !is_empty && max_offset >= data_len {
-            unimplemented!()
-        }
-        if !is_empty && dim_stride_overlap(dim, strides) {
-            unimplemented!()
-        }
-        Ok(())
-    }
     pub fn offset_from_low_addr_ptr_to_logical_ptr<D: Dimension>(dim: &D, strides: &D) -> usize {
         let offset = izip!(dim.slice(), strides.slice()).fold(0, |_offset, (&d, &s)| {
             let s = s as isize;
@@ -1627,7 +1500,6 @@ mod dimension {
         offset as usize
     }
 }
-pub use crate::layout::Layout;
 mod imp_prelude {
     pub use crate::prelude::*;
     pub use crate::{
@@ -1734,7 +1606,6 @@ mod impl_constructors {
     #![allow(clippy::match_wild_err_arm)]
     use crate::dimension;
     use crate::dimension::offset_from_low_addr_ptr_to_logical_ptr;
-    use crate::extension::nonnull::nonnull_from_vec_data;
     use crate::imp_prelude::*;
     use crate::indices;
     use crate::iterators::to_vec_mapped;
@@ -1785,23 +1656,12 @@ mod impl_constructors {
             Self::from_vec_dim_stride_unchecked(dim, strides, v)
         }
         unsafe fn from_vec_dim_stride_unchecked(dim: D, strides: D, mut v: Vec<A>) -> Self {
-            let ptr = std::ptr::NonNull::new(v.as_mut_ptr()
-                .add(offset_from_low_addr_ptr_to_logical_ptr(&dim, &strides))
-		).unwrap();
+            let ptr = std::ptr::NonNull::new(
+                v.as_mut_ptr()
+                    .add(offset_from_low_addr_ptr_to_logical_ptr(&dim, &strides)),
+            )
+            .unwrap();
             ArrayBase::from_data_ptr(DataOwned::new(v), ptr).with_strides_dim(strides, dim)
-        }
-    }
-}
-mod impl_methods {
-    use crate::imp_prelude::*;
-    impl<A, S, D> ArrayBase<S, D>
-    where
-        S: RawData<Elem = A>,
-        D: Dimension,
-    {
-        #[inline(always)]
-        pub fn as_ptr(&self) -> *const A {
-            self.ptr.as_ptr() as *const A
         }
     }
 }
