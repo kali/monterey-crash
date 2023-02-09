@@ -149,7 +149,6 @@ mod data_traits {
         ViewRepr,
     };
     use alloc::vec::Vec;
-    use rawpointer::PointerExt;
     use std::mem::MaybeUninit;
     use std::mem::{self, size_of};
     use std::ptr::NonNull;
@@ -158,7 +157,6 @@ mod data_traits {
         type Elem;
         #[deprecated(note = "Unused", since = "0.15.2")]
         fn _data_slice(&self) -> Option<&[Self::Elem]>;
-        fn _is_pointer_inbounds(&self, ptr: *const Self::Elem) -> bool;
         private_decl! {}
     }
     #[allow(clippy::missing_safety_doc)]
@@ -222,21 +220,12 @@ mod data_traits {
         fn _data_slice(&self) -> Option<&[A]> {
             unimplemented!()
         }
-        fn _is_pointer_inbounds(&self, self_ptr: *const Self::Elem) -> bool {
-            unimplemented!()
-        }
         private_impl! {}
     }
     unsafe impl<A> RawData for OwnedRepr<A> {
         type Elem = A;
         fn _data_slice(&self) -> Option<&[A]> {
             unimplemented!()
-        }
-        fn _is_pointer_inbounds(&self, self_ptr: *const Self::Elem) -> bool {
-            let slc = self.as_slice();
-            let ptr = slc.as_ptr() as *mut A;
-            let end = unsafe { ptr.add(slc.len()) };
-            self_ptr >= ptr && self_ptr <= end
         }
         private_impl! {}
     }
@@ -269,7 +258,7 @@ mod data_traits {
             if size_of::<A>() != 0 {
                 let our_off =
                     (ptr.as_ptr() as isize - self.as_ptr() as isize) / mem::size_of::<A>() as isize;
-                new_ptr = new_ptr.offset(our_off);
+                new_ptr = NonNull::new(new_ptr.as_ptr().offset(our_off)).unwrap();
             }
             (u, new_ptr)
         }
@@ -280,20 +269,12 @@ mod data_traits {
         fn _data_slice(&self) -> Option<&[A]> {
             unimplemented!()
         }
-        #[inline(always)]
-        fn _is_pointer_inbounds(&self, _ptr: *const Self::Elem) -> bool {
-            unimplemented!()
-        }
         private_impl! {}
     }
     unsafe impl<'a, A> RawData for ViewRepr<&'a mut A> {
         type Elem = A;
         #[inline]
         fn _data_slice(&self) -> Option<&[A]> {
-            unimplemented!()
-        }
-        #[inline(always)]
-        fn _is_pointer_inbounds(&self, _ptr: *const Self::Elem) -> bool {
             unimplemented!()
         }
         private_impl! {}
@@ -1727,7 +1708,6 @@ mod impl_internal_constructors {
                 dim: Ix1(0),
                 strides: Ix1(1),
             };
-            debug_assert!(array.pointer_is_inbounds());
             array
         }
     }
@@ -1760,7 +1740,6 @@ mod impl_constructors {
     use crate::iterators::to_vec_mapped;
     use crate::StrideShape;
     use alloc::vec::Vec;
-    use rawpointer::PointerExt;
     #[cfg(not(debug_assertions))]
     #[allow(clippy::match_wild_err_arm)]
     macro_rules ! size_of_shape_checked_unwrap { ($ dim : expr) => { match dimension :: size_of_shape_checked ($ dim) { Ok (sz) => sz , Err (_) => { panic ! ("ndarray: Shape too large, product of non-zero axis lengths overflows isize") } } } ; }
@@ -1806,9 +1785,9 @@ mod impl_constructors {
             Self::from_vec_dim_stride_unchecked(dim, strides, v)
         }
         unsafe fn from_vec_dim_stride_unchecked(dim: D, strides: D, mut v: Vec<A>) -> Self {
-            debug_assert!(dimension::can_index_slice(&v, &dim, &strides).is_ok());
-            let ptr = nonnull_from_vec_data(&mut v)
-                .add(offset_from_low_addr_ptr_to_logical_ptr(&dim, &strides));
+            let ptr = std::ptr::NonNull::new(v.as_mut_ptr()
+                .add(offset_from_low_addr_ptr_to_logical_ptr(&dim, &strides))
+		).unwrap();
             ArrayBase::from_data_ptr(DataOwned::new(v), ptr).with_strides_dim(strides, dim)
         }
     }
@@ -1823,9 +1802,6 @@ mod impl_methods {
         #[inline(always)]
         pub fn as_ptr(&self) -> *const A {
             self.ptr.as_ptr() as *const A
-        }
-        pub(crate) fn pointer_is_inbounds(&self) -> bool {
-            self.data._is_pointer_inbounds(self.as_ptr())
         }
     }
 }
