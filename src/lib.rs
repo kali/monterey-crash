@@ -14,7 +14,6 @@ extern crate alloc;
 extern crate core as std;
 pub use crate::dimension::dim::*;
 pub use crate::dimension::IxDynImpl;
-pub use crate::dimension::NdIndex;
 pub use crate::dimension::{Axis, AxisDescription, Dimension, IntoDimension, RemoveAxis};
 pub use crate::dimension::{DimAdd, DimMax};
 pub use crate::indexes::{indices, indices_of};
@@ -85,12 +84,7 @@ mod itertools {
     }
     macro_rules ! izip { (@ closure $ p : pat => $ tup : expr) => { |$ p | $ tup } ; (@ closure $ p : pat => ($ ($ tup : tt) *) , $ _iter : expr $ (, $ tail : expr) *) => { izip ! (@ closure ($ p , b) => ($ ($ tup) *, b) $ (, $ tail) *) } ; ($ first : expr $ (,) *) => { IntoIterator :: into_iter ($ first) } ; ($ first : expr , $ second : expr $ (,) *) => { izip ! ($ first) . zip ($ second) } ; ($ first : expr $ (, $ rest : expr) * $ (,) *) => { izip ! ($ first) $ (. zip ($ rest)) * . map (izip ! (@ closure a => (a) $ (, $ rest) *)) } ; }
 }
-mod argument_traits {
-    pub trait AssignElem<T> {
-        fn assign_elem(self, input: T);
-    }
-}
-pub use crate::argument_traits::AssignElem;
+mod argument_traits {}
 mod data_repr {
     use crate::extension::nonnull;
     use alloc::borrow::ToOwned;
@@ -453,12 +447,6 @@ mod indexes {
         start: D,
         dim: D,
     }
-    #[derive(Clone)]
-    pub struct IndicesIterF<D> {
-        dim: D,
-        index: D,
-        has_remaining: bool,
-    }
 }
 mod iterators {
     mod chunks {
@@ -467,55 +455,16 @@ mod iterators {
         use crate::ElementsBaseMut;
         type BaseProducerRef<'a, A, D> = ArrayView<'a, A, D>;
         type BaseProducerMut<'a, A, D> = ArrayViewMut<'a, A, D>;
-        pub struct ExactChunks<'a, A, D> {
-            base: BaseProducerRef<'a, A, D>,
-            chunk: D,
-            inner_strides: D,
-        }
-        pub struct ExactChunksIter<'a, A, D> {
-            iter: ElementsBase<'a, A, D>,
-            chunk: D,
-            inner_strides: D,
-        }
-        pub struct ExactChunksMut<'a, A, D> {
-            base: BaseProducerMut<'a, A, D>,
-            chunk: D,
-            inner_strides: D,
-        }
-        pub struct ExactChunksIterMut<'a, A, D> {
-            iter: ElementsBaseMut<'a, A, D>,
-            chunk: D,
-            inner_strides: D,
-        }
     }
     pub mod iter {
         pub use crate::indexes::{Indices, IndicesIter};
     }
     mod lanes {
         use crate::imp_prelude::*;
-        pub struct Lanes<'a, A, D> {
-            base: ArrayView<'a, A, D>,
-            inner_len: Ix,
-            inner_stride: Ixs,
-        }
-        pub struct LanesMut<'a, A, D> {
-            base: ArrayViewMut<'a, A, D>,
-            inner_len: Ix,
-            inner_stride: Ixs,
-        }
     }
     mod windows {
         use crate::imp_prelude::*;
-        pub struct Windows<'a, A, D> {
-            base: ArrayView<'a, A, D>,
-            window: D,
-            strides: D,
-        }
     }
-    pub use self::chunks::{ExactChunks, ExactChunksIter, ExactChunksIterMut, ExactChunksMut};
-    pub use self::lanes::{Lanes, LanesMut};
-    pub use self::windows::Windows;
-    use super::{ArrayBase, ArrayView, ArrayViewMut, Axis, Data, NdProducer, RemoveAxis};
     use super::{Dimension, Ix, Ixs};
     use alloc::vec::Vec;
     use std::marker::PhantomData;
@@ -548,21 +497,6 @@ mod iterators {
         inner: Baseiter<A, D>,
         life: PhantomData<&'a mut A>,
     }
-    #[derive(Clone)]
-    pub struct IndexedIter<'a, A, D>(ElementsBase<'a, A, D>);
-    pub struct IndexedIterMut<'a, A, D>(ElementsBaseMut<'a, A, D>);
-    pub struct LanesIter<'a, A, D> {
-        inner_len: Ix,
-        inner_stride: Ixs,
-        iter: Baseiter<A, D>,
-        life: PhantomData<&'a A>,
-    }
-    pub struct LanesIterMut<'a, A, D> {
-        inner_len: Ix,
-        inner_stride: Ixs,
-        iter: Baseiter<A, D>,
-        life: PhantomData<&'a mut A>,
-    }
     #[derive(Debug)]
     pub struct AxisIterCore<A, D> {
         index: Ix,
@@ -571,27 +505,6 @@ mod iterators {
         inner_dim: D,
         inner_strides: D,
         ptr: *mut A,
-    }
-    #[derive(Debug)]
-    pub struct AxisIter<'a, A, D> {
-        iter: AxisIterCore<A, D>,
-        life: PhantomData<&'a A>,
-    }
-    pub struct AxisIterMut<'a, A, D> {
-        iter: AxisIterCore<A, D>,
-        life: PhantomData<&'a mut A>,
-    }
-    pub struct AxisChunksIter<'a, A, D> {
-        iter: AxisIterCore<A, D>,
-        partial_chunk_index: usize,
-        partial_chunk_dim: D,
-        life: PhantomData<&'a A>,
-    }
-    pub struct AxisChunksIterMut<'a, A, D> {
-        iter: AxisIterCore<A, D>,
-        partial_chunk_index: usize,
-        partial_chunk_dim: D,
-        life: PhantomData<&'a mut A>,
     }
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait TrustedIterator {}
@@ -635,13 +548,6 @@ mod order {
     pub enum Order {
         RowMajor,
         ColumnMajor,
-    }
-}
-mod partial {
-    #[must_use]
-    pub(crate) struct Partial<T> {
-        ptr: *mut T,
-        pub(crate) len: usize,
     }
 }
 mod shape_builder {
@@ -824,24 +730,6 @@ mod slice {
         private_decl! {}
     }
 }
-mod split_at {
-    use crate::imp_prelude::*;
-    pub(crate) trait SplitAt {
-        fn split_at(self, axis: Axis, index: usize) -> (Self, Self)
-        where
-            Self: Sized;
-    }
-    pub(crate) trait SplitPreference: SplitAt {
-        fn can_split(&self) -> bool;
-        fn split_preference(&self) -> (Axis, usize);
-        fn split(self) -> (Self, Self)
-        where
-            Self: Sized,
-        {
-            unimplemented!()
-        }
-    }
-}
 #[macro_use]
 mod zip {
     mod ndproducer {
@@ -878,38 +766,11 @@ mod zip {
             unsafe fn stride_offset(self, s: Self::Stride, index: usize) -> Self;
             private_decl! {}
         }
-        impl<T> Offset for *mut T {
-            type Stride = isize;
-            unsafe fn stride_offset(self, s: Self::Stride, index: usize) -> Self {
-                unimplemented!()
-            }
-            private_impl! {}
-        }
     }
     pub use self::ndproducer::{IntoNdProducer, NdProducer, Offset};
     use crate::imp_prelude::*;
     use crate::IntoDimension;
     use crate::Layout;
-    trait Broadcast<E>
-    where
-        E: IntoDimension,
-    {
-        type Output: NdProducer<Dim = E::Dim>;
-        fn broadcast_unwrap(self, shape: E) -> Self::Output;
-        private_decl! {}
-    }
-    trait ZippableTuple: Sized {
-        type Item;
-        type Ptr: OffsetTuple<Args = Self::Stride> + Copy;
-        type Dim: Dimension;
-        type Stride: Copy;
-        fn as_ptr(&self) -> Self::Ptr;
-        unsafe fn as_ref(&self, ptr: Self::Ptr) -> Self::Item;
-        unsafe fn uget_ptr(&self, i: &Self::Dim) -> Self::Ptr;
-        fn stride_of(&self, index: usize) -> Self::Stride;
-        fn contiguous_stride(&self) -> Self::Stride;
-        fn split_at(self, axis: Axis, index: usize) -> (Self, Self);
-    }
     #[derive(Debug, Clone)]
     #[must_use = "zipping producers is lazy and does nothing unless consumed"]
     pub struct Zip<Parts, D> {
@@ -923,8 +784,6 @@ mod zip {
         unsafe fn stride_offset(self, stride: Self::Args, index: usize) -> Self;
     }
     macro_rules ! offset_impl { ($ ([$ ($ param : ident) *] [$ ($ q : ident) *] ,) +) => { $ (# [allow (non_snake_case)] impl <$ ($ param : Offset) ,*> OffsetTuple for ($ ($ param ,) *) { type Args = ($ ($ param :: Stride ,) *) ; unsafe fn stride_offset (self , stride : Self :: Args , index : usize) -> Self { let ($ ($ param ,) *) = self ; let ($ ($ q ,) *) = stride ; ($ (Offset :: stride_offset ($ param , $ q , index) ,) *) } }) + } }
-    offset_impl! { [A] [a] , [A B] [a b] , [A B C] [a b c] , [A B C D] [a b c d] , [A B C D E] [a b c d e] , [A B C D E F] [a b c d e f] , }
-    macro_rules ! zipt_impl { ($ ([$ ($ p : ident) *] [$ ($ q : ident) *] ,) +) => { $ (# [allow (non_snake_case)] impl < Dim : Dimension , $ ($ p : NdProducer < Dim = Dim >) ,*> ZippableTuple for ($ ($ p ,) *) { type Item = ($ ($ p :: Item ,) *) ; type Ptr = ($ ($ p :: Ptr ,) *) ; type Dim = Dim ; type Stride = ($ ($ p :: Stride ,) *) ; fn stride_of (& self , index : usize) -> Self :: Stride { let ($ (ref $ p ,) *) = * self ; ($ ($ p . stride_of (Axis (index)) ,) *) } fn contiguous_stride (& self) -> Self :: Stride { let ($ (ref $ p ,) *) = * self ; ($ ($ p . contiguous_stride () ,) *) } fn as_ptr (& self) -> Self :: Ptr { let ($ (ref $ p ,) *) = * self ; ($ ($ p . as_ptr () ,) *) } unsafe fn as_ref (& self , ptr : Self :: Ptr) -> Self :: Item { let ($ (ref $ q ,) *) = * self ; let ($ ($ p ,) *) = ptr ; ($ ($ q . as_ref ($ p) ,) *) } unsafe fn uget_ptr (& self , i : & Self :: Dim) -> Self :: Ptr { let ($ (ref $ p ,) *) = * self ; ($ ($ p . uget_ptr (i) ,) *) } fn split_at (self , axis : Axis , index : Ix) -> (Self , Self) { let ($ ($ p ,) *) = self ; let ($ ($ p ,) *) = ($ ($ p . split_at (axis , index) ,) *) ; (($ ($ p . 0 ,) *) , ($ ($ p . 1 ,) *)) } }) + } }
     #[derive(Debug, Copy, Clone)]
     pub enum FoldWhile<T> {
         Continue(T),
@@ -932,7 +791,6 @@ mod zip {
     }
 }
 mod dimension {
-    pub(crate) use self::axes::axes_of;
     pub use self::axes::{Axes, AxisDescription};
     pub use self::axis::Axis;
     pub use self::broadcast::DimMax;
@@ -940,7 +798,6 @@ mod dimension {
     pub use self::dim::*;
     pub use self::dimension_trait::Dimension;
     pub use self::dynindeximpl::IxDynImpl;
-    pub use self::ndindex::NdIndex;
     pub use self::ops::DimAdd;
     pub use self::remove_axis::RemoveAxis;
     use crate::error::{from_kind, ErrorKind, ShapeError};
@@ -948,12 +805,6 @@ mod dimension {
     use std::mem;
     mod axes {
         use crate::{Axis, Dimension, Ix, Ixs};
-        pub(crate) fn axes_of<'a, D>(d: &'a D, strides: &'a D) -> Axes<'a, D>
-        where
-            D: Dimension,
-        {
-            unimplemented!()
-        }
         #[derive(Debug)]
         pub struct Axes<'a, D> {
             dim: &'a D,
@@ -1684,11 +1535,6 @@ mod dimension {
             Dim, Dimension, IntoDimension, Ix, Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn, IxDynImpl,
         };
         use std::fmt::Debug;
-        #[allow(clippy::missing_safety_doc)]
-        pub unsafe trait NdIndex<E>: Debug {
-            fn index_checked(&self, dim: &E, strides: &E) -> Option<isize>;
-            fn index_unchecked(&self, strides: &E) -> isize;
-        }
         impl<'a> IntoDimension for &'a [Ix] {
             type Dim = IxDyn;
             fn into_dimension(self) -> Self::Dim {
@@ -1778,10 +1624,6 @@ mod dimension {
         }
         macro_rules ! impl_remove_axis_array (($ ($ n : expr) ,*) => ($ (impl RemoveAxis for Dim < [Ix ; $ n] > { # [inline] fn remove_axis (& self , axis : Axis) -> Self :: Smaller { debug_assert ! (axis . index () < self . ndim ()) ; let mut result = Dim ([0 ; $ n - 1]) ; { let src = self . slice () ; let dst = result . slice_mut () ; dst [.. axis . index ()] . copy_from_slice (& src [.. axis . index ()]) ; dst [axis . index () ..] . copy_from_slice (& src [axis . index () + 1 ..]) ; } result } }) *) ;) ;
         impl_remove_axis_array!(3, 4, 5, 6);
-    }
-    #[inline(always)]
-    pub fn stride_offset(n: Ix, stride: Ix) -> isize {
-        unimplemented!()
     }
     pub fn dim_stride_overlap<D: Dimension>(dim: &D, strides: &D) -> bool {
         let order = strides._fastest_varying_stride_order();
@@ -1874,10 +1716,6 @@ mod dimension {
         }
         Ok(())
     }
-    #[inline]
-    pub fn abs_index(len: Ix, index: Ixs) -> Ix {
-        unimplemented!()
-    }
     pub fn offset_from_low_addr_ptr_to_logical_ptr<D: Dimension>(dim: &D, strides: &D) -> usize {
         let offset = izip!(dim.slice(), strides.slice()).fold(0, |_offset, (&d, &s)| {
             let s = s as isize;
@@ -1889,21 +1727,6 @@ mod dimension {
         });
         debug_assert!(offset >= 0);
         offset as usize
-    }
-    pub fn do_slice(dim: &mut usize, stride: &mut usize, slice: Slice) -> isize {
-        unimplemented!()
-    }
-    pub fn merge_axes<D>(dim: &mut D, strides: &mut D, take: Axis, into: Axis) -> bool
-    where
-        D: Dimension,
-    {
-        unimplemented!()
-    }
-    pub fn move_min_stride_axis_to_last<D>(dim: &mut D, strides: &mut D)
-    where
-        D: Dimension,
-    {
-        unimplemented!()
     }
 }
 pub use crate::layout::Layout;
