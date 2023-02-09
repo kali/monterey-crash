@@ -20,25 +20,6 @@ pub use crate::indexes::{indices, indices_of};
 pub use crate::shape_builder::{Shape, ShapeArg, ShapeBuilder, StrideShape};
 use alloc::sync::Arc;
 use std::marker::PhantomData;
-#[macro_use]
-mod private {
-    pub struct PrivateMarker;
-    macro_rules! private_decl {
-        () => {
-            #[doc = " This trait is private to implement; this method exists to make it"]
-            #[doc = " impossible to implement outside the crate."]
-            #[doc(hidden)]
-            fn __private__(&self) -> crate::private::PrivateMarker;
-        };
-    }
-    macro_rules! private_impl {
-        () => {
-            fn __private__(&self) -> crate::private::PrivateMarker {
-                crate::private::PrivateMarker
-            }
-        };
-    }
-}
 mod aliases {
     use crate::dimension::Dim;
     use crate::{ArcArray, Array, ArrayView, ArrayViewMut, Ix, IxDynImpl};
@@ -74,7 +55,6 @@ mod itertools {
     {
         i.into_iter().zip(j)
     }
-    macro_rules ! izip { (@ closure $ p : pat => $ tup : expr) => { |$ p | $ tup } ; (@ closure $ p : pat => ($ ($ tup : tt) *) , $ _iter : expr $ (, $ tail : expr) *) => { izip ! (@ closure ($ p , b) => ($ ($ tup) *, b) $ (, $ tail) *) } ; ($ first : expr $ (,) *) => { IntoIterator :: into_iter ($ first) } ; ($ first : expr , $ second : expr $ (,) *) => { izip ! ($ first) . zip ($ second) } ; ($ first : expr $ (, $ rest : expr) * $ (,) *) => { izip ! ($ first) $ (. zip ($ rest)) * . map (izip ! (@ closure a => (a) $ (, $ rest) *)) } ; }
 }
 mod data_repr {
     use crate::extension::nonnull;
@@ -149,7 +129,6 @@ mod data_traits {
         type Elem;
         #[deprecated(note = "Unused", since = "0.15.2")]
         fn _data_slice(&self) -> Option<&[Self::Elem]>;
-        private_decl! {}
     }
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait RawDataMut: RawData {
@@ -212,14 +191,12 @@ mod data_traits {
         fn _data_slice(&self) -> Option<&[A]> {
             unimplemented!()
         }
-        private_impl! {}
     }
     unsafe impl<A> RawData for OwnedRepr<A> {
         type Elem = A;
         fn _data_slice(&self) -> Option<&[A]> {
             unimplemented!()
         }
-        private_impl! {}
     }
     unsafe impl<A> Data for OwnedRepr<A> {
         #[inline]
@@ -261,7 +238,6 @@ mod data_traits {
         fn _data_slice(&self) -> Option<&[A]> {
             unimplemented!()
         }
-        private_impl! {}
     }
     unsafe impl<'a, A> RawData for ViewRepr<&'a mut A> {
         type Elem = A;
@@ -269,7 +245,6 @@ mod data_traits {
         fn _data_slice(&self) -> Option<&[A]> {
             unimplemented!()
         }
-        private_impl! {}
     }
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait DataOwned: Data {
@@ -977,7 +952,6 @@ mod dimension {
             }
             fn insert_axis(&self, axis: Axis) -> Self::Larger;
             fn try_remove_axis(&self, axis: Axis) -> Self::Smaller;
-            private_decl! {}
         }
         macro_rules ! impl_insert_axis_array (($ n : expr) => (# [inline] fn insert_axis (& self , axis : Axis) -> Self :: Larger { debug_assert ! (axis . index () <= $ n) ; let mut out = [1 ; $ n + 1] ; out [0 .. axis . index ()] . copy_from_slice (& self . slice () [0 .. axis . index ()]) ; out [axis . index () + 1 ..=$ n] . copy_from_slice (& self . slice () [axis . index () ..$ n]) ; Dim (out) }) ;) ;
         impl Dimension for Dim<[Ix; 0]> {
@@ -1010,7 +984,6 @@ mod dimension {
             fn try_remove_axis(&self, _ignore: Axis) -> Self::Smaller {
                 unimplemented!()
             }
-            private_impl! {}
         }
         impl Dimension for Dim<[Ix; 1]> {
             const NDIM: Option<usize> = Some(1);
@@ -1042,7 +1015,6 @@ mod dimension {
             fn try_remove_axis(&self, axis: Axis) -> Self::Smaller {
                 unimplemented!()
             }
-            private_impl! {}
         }
         impl Dimension for Dim<[Ix; 2]> {
             const NDIM: Option<usize> = Some(2);
@@ -1074,7 +1046,6 @@ mod dimension {
             fn try_remove_axis(&self, axis: Axis) -> Self::Smaller {
                 unimplemented!()
             }
-            private_impl! {}
         }
         impl Dimension for Dim<[Ix; 3]> {
             const NDIM: Option<usize> = Some(3);
@@ -1106,9 +1077,8 @@ mod dimension {
             fn try_remove_axis(&self, axis: Axis) -> Self::Smaller {
                 unimplemented!()
             }
-            private_impl! {}
         }
-        macro_rules ! large_dim { ($ n : expr , $ name : ident , $ pattern : ty , $ larger : ty , { $ ($ insert_axis : tt) * }) => (impl Dimension for Dim < [Ix ; $ n] > { const NDIM : Option < usize > = Some ($ n) ; type Pattern = $ pattern ; type Smaller = Dim < [Ix ; $ n - 1] >; type Larger = $ larger ; # [inline] fn ndim (& self) -> usize { $ n } # [inline] fn into_pattern (self) -> Self :: Pattern { self . ix () . convert () } # [inline] fn slice (& self) -> & [Ix] { self . ix () } # [inline] fn slice_mut (& mut self) -> & mut [Ix] { self . ixm () } # [inline] fn zeros (ndim : usize) -> Self { assert_eq ! (ndim , $ n) ; Self :: default () } $ ($ insert_axis) * # [inline] fn try_remove_axis (& self , axis : Axis) -> Self :: Smaller { self . remove_axis (axis) } private_impl ! { } }) }
+        macro_rules ! large_dim { ($ n : expr , $ name : ident , $ pattern : ty , $ larger : ty , { $ ($ insert_axis : tt) * }) => (impl Dimension for Dim < [Ix ; $ n] > { const NDIM : Option < usize > = Some ($ n) ; type Pattern = $ pattern ; type Smaller = Dim < [Ix ; $ n - 1] >; type Larger = $ larger ; # [inline] fn ndim (& self) -> usize { $ n } # [inline] fn into_pattern (self) -> Self :: Pattern { self . ix () . convert () } # [inline] fn slice (& self) -> & [Ix] { self . ix () } # [inline] fn slice_mut (& mut self) -> & mut [Ix] { self . ixm () } # [inline] fn zeros (ndim : usize) -> Self { assert_eq ! (ndim , $ n) ; Self :: default () } $ ($ insert_axis) * # [inline] fn try_remove_axis (& self , axis : Axis) -> Self :: Smaller { self . remove_axis (axis) } }) }
         large_dim!(4, Ix4, (Ix, Ix, Ix, Ix), Ix5, {
             impl_insert_axis_array!(4);
         });
@@ -1158,7 +1128,6 @@ mod dimension {
             fn try_remove_axis(&self, axis: Axis) -> Self::Smaller {
                 unimplemented!()
             }
-            private_impl! {}
         }
         impl Index<usize> for Dim<IxDynImpl> {
             type Output = <IxDynImpl as Index<usize>>::Output;
@@ -1418,7 +1387,7 @@ mod dimension {
         }
     }
     pub fn offset_from_low_addr_ptr_to_logical_ptr<D: Dimension>(dim: &D, strides: &D) -> usize {
-        let offset = izip!(dim.slice(), strides.slice()).fold(0, |_offset, (&d, &s)| {
+        let offset = dim.slice().iter().zip(strides.slice()).fold(0, |_offset, (&d, &s)| {
             let s = s as isize;
             if s < 0 && d > 1 {
                 unimplemented!()
