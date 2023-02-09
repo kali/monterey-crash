@@ -21,10 +21,6 @@ pub use crate::shape_builder::{Shape, ShapeArg, ShapeBuilder, StrideShape};
 use alloc::sync::Arc;
 use std::marker::PhantomData;
 #[macro_use]
-mod macro_utils {
-    macro_rules ! clone_bounds { ([$ ($ parmbounds : tt) *] $ typename : ident [$ ($ parm : tt) *] { @ copy { $ ($ copyfield : ident ,) * } $ ($ field : ident ,) * }) => { impl <$ ($ parmbounds) *> Clone for $ typename <$ ($ parm) *> { fn clone (& self) -> Self { $ typename { $ ($ copyfield : self .$ copyfield ,) * $ ($ field : self .$ field . clone () ,) * } } } } ; }
-}
-#[macro_use]
 mod private {
     pub struct PrivateMarker;
     macro_rules! private_decl {
@@ -430,20 +426,7 @@ mod iterators {
     }
     use super::{Dimension, Ix, Ixs};
     use alloc::vec::Vec;
-    use std::marker::PhantomData;
     use std::ptr;
-    use std::slice::{self, Iter as SliceIter, IterMut as SliceIterMut};
-    pub struct Baseiter<A, D> {
-        ptr: *mut A,
-        dim: D,
-        strides: D,
-        index: Option<D>,
-    }
-    #[derive(Clone)]
-    pub enum ElementsRepr<S, C> {
-        Slice(S),
-        Counted(C),
-    }
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait TrustedIterator {}
     use crate::iter::IndicesIter;
@@ -467,7 +450,6 @@ mod iterators {
         result
     }
 }
-mod layout {}
 mod order {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     #[non_exhaustive]
@@ -1422,22 +1404,6 @@ mod dimension {
         macro_rules ! impl_remove_axis_array (($ ($ n : expr) ,*) => ($ (impl RemoveAxis for Dim < [Ix ; $ n] > { # [inline] fn remove_axis (& self , axis : Axis) -> Self :: Smaller { debug_assert ! (axis . index () < self . ndim ()) ; let mut result = Dim ([0 ; $ n - 1]) ; { let src = self . slice () ; let dst = result . slice_mut () ; dst [.. axis . index ()] . copy_from_slice (& src [.. axis . index ()]) ; dst [axis . index () ..] . copy_from_slice (& src [axis . index () + 1 ..]) ; } result } }) *) ;) ;
         impl_remove_axis_array!(3, 4, 5, 6);
     }
-    pub fn dim_stride_overlap<D: Dimension>(dim: &D, strides: &D) -> bool {
-        let order = strides._fastest_varying_stride_order();
-        let mut sum_prev_offsets = 0;
-        for &index in order.slice() {
-            let d = dim[index];
-            let s = (strides[index] as isize).abs();
-            match d {
-                0 => return false,
-                1 => {}
-                _ => {
-                    unimplemented!()
-                }
-            }
-        }
-        false
-    }
     pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ShapeError> {
         let size_nonzero = dim
             .slice()
@@ -1450,42 +1416,6 @@ mod dimension {
         } else {
             Ok(dim.size())
         }
-    }
-    pub fn max_abs_offset_check_overflow<A, D>(dim: &D, strides: &D) -> Result<usize, ShapeError>
-    where
-        D: Dimension,
-    {
-        max_abs_offset_check_overflow_impl(mem::size_of::<A>(), dim, strides)
-    }
-    fn max_abs_offset_check_overflow_impl<D>(
-        elem_size: usize,
-        dim: &D,
-        strides: &D,
-    ) -> Result<usize, ShapeError>
-    where
-        D: Dimension,
-    {
-        if dim.ndim() != strides.ndim() {
-            unimplemented!()
-        }
-        let _ = size_of_shape_checked(dim)?;
-        let max_offset: usize = izip!(dim.slice(), strides.slice())
-            .try_fold(0usize, |acc, (&d, &s)| {
-                let s = s as isize;
-                let off = d.saturating_sub(1).checked_mul(s.unsigned_abs())?;
-                acc.checked_add(off)
-            })
-            .ok_or_else(|| from_kind(ErrorKind::Overflow))?;
-        if max_offset > isize::MAX as usize {
-            unimplemented!()
-        }
-        let max_offset_bytes = max_offset
-            .checked_mul(elem_size)
-            .ok_or_else(|| from_kind(ErrorKind::Overflow))?;
-        if max_offset_bytes > isize::MAX as usize {
-            unimplemented!()
-        }
-        Ok(max_offset)
     }
     pub fn offset_from_low_addr_ptr_to_logical_ptr<D: Dimension>(dim: &D, strides: &D) -> usize {
         let offset = izip!(dim.slice(), strides.slice()).fold(0, |_offset, (&d, &s)| {
