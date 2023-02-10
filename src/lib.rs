@@ -229,32 +229,9 @@ where
 }
 pub struct Shape<D> {
     pub(crate) dim: D,
-    pub(crate) strides: Strides,
-}
-impl<D> Shape<D> {
-    pub(crate) fn is_c(&self) -> bool {
-        match self.strides {
-            Strides::C => true,
-            _ => false,
-        }
-    }
 }
 pub struct StrideShape<D> {
     pub(crate) dim: D,
-    pub(crate) strides: Strides,
-}
-pub(crate) enum Strides {
-    C,
-}
-impl Strides {
-    pub(crate) fn strides_for_dim<D>(self, dim: &D) -> D
-    where
-        D: Dimension,
-    {
-        match self {
-            Strides::C => dim.default_strides(),
-        }
-    }
 }
 pub trait ShapeBuilder {
     type Dim: Dimension;
@@ -268,13 +245,7 @@ where
 {
     fn from(value: T) -> Self {
         let shape = value.into_shape();
-        let st = if shape.is_c() {
-            Strides::C
-        } else {
-            unimplemented!()
-        };
         StrideShape {
-            strides: st,
             dim: shape.dim,
         }
     }
@@ -288,7 +259,6 @@ where
     fn into_shape(self) -> Shape<Self::Dim> {
         Shape {
             dim: self.into_dimension(),
-            strides: Strides::C,
         }
     }
 }
@@ -885,12 +855,8 @@ where
                 unimplemented!()
             }
         };
-        if shape.is_c() {
             let v = to_vec_mapped(indices(shape.dim.clone()).into_iter(), f);
             unsafe { Self::from_shape_vec_unchecked(shape, v) }
-        } else {
-            unimplemented!()
-        }
     }
     pub unsafe fn from_shape_vec_unchecked<Sh>(shape: Sh, v: Vec<A>) -> Self
     where
@@ -898,7 +864,7 @@ where
     {
         let shape = shape.into();
         let dim = shape.dim;
-        let strides = shape.strides.strides_for_dim(&dim);
+        let strides = dim.default_strides();
         Self::from_vec_dim_stride_unchecked(dim, strides, v)
     }
     unsafe fn from_vec_dim_stride_unchecked(dim: D, strides: D, mut v: Vec<A>) -> Self {
