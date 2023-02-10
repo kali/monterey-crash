@@ -1,28 +1,17 @@
-#![crate_name = "ndarray"]
-#![allow(
-    clippy::many_single_char_names,
-    clippy::deref_addrof,
-    clippy::unreadable_literal,
-    clippy::manual_map,
-    clippy::while_let_on_iterator,
-    clippy::from_iter_instead_of_collect,
-    clippy::redundant_closure
-)]
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 #[cfg(not(feature = "std"))]
 extern crate core as std;
-pub use crate::dimension::dim::*;
-pub use crate::dimension::IxDynImpl;
-pub use crate::dimension::{Axis, AxisDescription, Dimension, IntoDimension, RemoveAxis};
-pub use crate::dimension::{DimAdd, DimMax};
-pub use crate::indexes::{indices, indices_of};
-pub use crate::shape_builder::{Shape, ShapeArg, ShapeBuilder, StrideShape};
+
+
+
+
+
+
 use alloc::sync::Arc;
 use std::marker::PhantomData;
-mod aliases {
-    use crate::dimension::Dim;
-    use crate::{ArcArray, Array, ArrayView, ArrayViewMut, Ix, IxDynImpl};
+    
+    
     #[allow(non_snake_case)]
     #[inline(always)]
     pub fn Ix1(i0: Ix) -> Ix1 {
@@ -38,17 +27,13 @@ mod aliases {
     pub type IxDyn = Dim<IxDynImpl>;
     pub type ArrayView1<'a, A> = ArrayView<'a, A, Ix1>;
     pub type ArrayViewMut1<'a, A> = ArrayViewMut<'a, A, Ix1>;
-}
-#[macro_use]
-mod itertools {
-    use std::iter;
-    pub(crate) fn enumerate<I>(iterable: I) -> iter::Enumerate<I::IntoIter>
+    pub(crate) fn enumerate<I>(iterable: I) -> std::iter::Enumerate<I::IntoIter>
     where
         I: IntoIterator,
     {
         unimplemented!()
     }
-    pub(crate) fn zip<I, J>(i: I, j: J) -> iter::Zip<I::IntoIter, J::IntoIter>
+    pub(crate) fn zip<I, J>(i: I, j: J) -> std::iter::Zip<I::IntoIter, J::IntoIter>
     where
         I: IntoIterator,
         J: IntoIterator,
@@ -56,9 +41,7 @@ mod itertools {
         i.into_iter().zip(j)
     }
     macro_rules ! izip { (@ closure $ p : pat => $ tup : expr) => { |$ p | $ tup } ; (@ closure $ p : pat => ($ ($ tup : tt) *) , $ _iter : expr $ (, $ tail : expr) *) => { izip ! (@ closure ($ p , b) => ($ ($ tup) *, b) $ (, $ tail) *) } ; ($ first : expr $ (,) *) => { IntoIterator :: into_iter ($ first) } ; ($ first : expr , $ second : expr $ (,) *) => { izip ! ($ first) . zip ($ second) } ; ($ first : expr $ (, $ rest : expr) * $ (,) *) => { izip ! ($ first) $ (. zip ($ rest)) * . map (izip ! (@ closure a => (a) $ (, $ rest) *)) } ; }
-}
-mod data_repr {
-    use crate::extension::nonnull;
+    
     use alloc::borrow::ToOwned;
     use alloc::slice;
     use alloc::vec::Vec;
@@ -77,7 +60,7 @@ mod data_repr {
             let mut v = ManuallyDrop::new(v);
             let len = v.len();
             let capacity = v.capacity();
-            let ptr = nonnull::nonnull_from_vec_data(&mut v);
+            let ptr = nonnull_from_vec_data(&mut v);
             Self { ptr, len, capacity }
         }
         pub(crate) fn as_slice(&self) -> &[A] {
@@ -115,16 +98,9 @@ mod data_repr {
             }
         }
     }
-}
-mod data_traits {
-    use crate::{
-        ArcArray, Array, ArrayBase, CowRepr, Dimension, OwnedArcRepr, OwnedRepr, RawViewRepr,
-        ViewRepr,
-    };
-    use alloc::vec::Vec;
+    
     use std::mem::MaybeUninit;
-    use std::mem::{self, size_of};
-    use std::ptr::NonNull;
+    use std::mem::{size_of};
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait RawData: Sized {
         type Elem;
@@ -132,23 +108,8 @@ mod data_traits {
         fn _data_slice(&self) -> Option<&[Self::Elem]>;
     }
     #[allow(clippy::missing_safety_doc)]
-    pub unsafe trait RawDataMut: RawData {
-        fn try_ensure_unique<D>(_: &mut ArrayBase<Self, D>)
-        where
-            Self: Sized,
-            D: Dimension;
-        fn try_is_unique(&mut self) -> Option<bool>;
-    }
-    #[allow(clippy::missing_safety_doc)]
     pub unsafe trait RawDataClone: RawData {
         unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>);
-        unsafe fn clone_from_with_ptr(
-            &mut self,
-            other: &Self,
-            ptr: NonNull<Self::Elem>,
-        ) -> NonNull<Self::Elem> {
-            unimplemented!()
-        }
     }
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait Data: RawData {
@@ -172,7 +133,7 @@ mod data_traits {
         }
     }
     #[allow(clippy::missing_safety_doc)]
-    pub unsafe trait DataMut: Data + RawDataMut {
+    pub unsafe trait DataMut: Data  {
         #[inline]
         fn ensure_unique<D>(self_: &mut ArrayBase<Self, D>)
         where
@@ -275,13 +236,8 @@ mod data_traits {
             unimplemented!()
         }
     }
-}
-pub use crate::aliases::*;
-pub use crate::data_traits::{
-    Data, DataMut, DataOwned, DataShared, RawData, RawDataClone, RawDataMut, RawDataSubst,
-};
-pub use crate::iterators::iter;
-mod error {
+
+
     #[derive(Clone)]
     pub struct ShapeError {
         repr: ErrorKind,
@@ -300,20 +256,12 @@ mod error {
     pub fn from_kind(k: ErrorKind) -> ShapeError {
         unimplemented!()
     }
-}
-mod extension {
-    pub(crate) mod nonnull {
-        use alloc::vec::Vec;
-        use std::ptr::NonNull;
         pub(crate) fn nonnull_from_vec_data<T>(v: &mut Vec<T>) -> NonNull<T> {
             unsafe { NonNull::new_unchecked(v.as_mut_ptr()) }
         }
-    }
-}
-mod indexes {
-    use super::Dimension;
-    use crate::dimension::IntoDimension;
-    use crate::{ArrayBase, Data};
+    
+    
+    
     #[derive(Clone)]
     pub struct IndicesIter<D> {
         dim: D,
@@ -395,17 +343,10 @@ mod indexes {
         start: D,
         dim: D,
     }
-}
-mod iterators {
-    pub mod iter {
-        pub use crate::indexes::{Indices, IndicesIter};
-    }
-    use super::{Dimension, Ix, Ixs};
-    use alloc::vec::Vec;
     use std::ptr;
     #[allow(clippy::missing_safety_doc)]
     pub unsafe trait TrustedIterator {}
-    use crate::iter::IndicesIter;
+    
     unsafe impl<D> TrustedIterator for IndicesIter<D> where D: Dimension {}
     pub fn to_vec_mapped<I, F, B>(iter: I, mut f: F) -> Vec<B>
     where
@@ -425,19 +366,15 @@ mod iterators {
         debug_assert_eq!(size, result.len());
         result
     }
-}
-mod order {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     #[non_exhaustive]
     pub enum Order {
         RowMajor,
         ColumnMajor,
     }
-}
-mod shape_builder {
-    use crate::dimension::IntoDimension;
-    use crate::order::Order;
-    use crate::Dimension;
+    
+    
+    
     #[derive(Copy, Clone, Debug)]
     pub struct Shape<D> {
         pub(crate) dim: D,
@@ -546,20 +483,8 @@ mod shape_builder {
         type Dim: Dimension;
         fn into_shape_and_order(self) -> (Self::Dim, Option<Order>);
     }
-}
-mod dimension {
-    pub use self::axes::{Axes, AxisDescription};
-    pub use self::axis::Axis;
-    pub use self::broadcast::DimMax;
-    pub use self::conversion::IntoDimension;
-    pub use self::dim::*;
-    pub use self::dimension_trait::Dimension;
-    pub use self::dynindeximpl::IxDynImpl;
-    pub use self::ops::DimAdd;
-    pub use self::remove_axis::RemoveAxis;
-    use crate::error::{from_kind, ErrorKind, ShapeError};
-    mod axes {
-        use crate::{Axis, Dimension, Ix, Ixs};
+    
+        
         #[derive(Debug)]
         pub struct Axes<'a, D> {
             dim: &'a D,
@@ -573,8 +498,6 @@ mod dimension {
             pub len: usize,
             pub stride: isize,
         }
-    }
-    mod axis {
         #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
         pub struct Axis(pub usize);
         impl Axis {
@@ -583,9 +506,6 @@ mod dimension {
                 unimplemented!()
             }
         }
-    }
-    pub(crate) mod broadcast {
-        use crate::{Dimension, Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn};
         pub trait DimMax<Other: Dimension> {
             type Output: Dimension;
         }
@@ -620,10 +540,7 @@ mod dimension {
         impl_broadcast_distinct_fixed!(Ix4, IxDyn);
         impl_broadcast_distinct_fixed!(Ix5, IxDyn);
         impl_broadcast_distinct_fixed!(Ix6, IxDyn);
-    }
-    mod conversion {
-        use crate::{Dim, Dimension, Ix, Ix1, IxDyn, IxDynImpl};
-        use alloc::vec::Vec;
+        
         use num_traits::Zero;
         macro_rules ! index { ($ m : ident $ arg : tt 0) => ($ m ! ($ arg)) ; ($ m : ident $ arg : tt 1) => ($ m ! ($ arg 0)) ; ($ m : ident $ arg : tt 2) => ($ m ! ($ arg 0 1)) ; ($ m : ident $ arg : tt 3) => ($ m ! ($ arg 0 1 2)) ; ($ m : ident $ arg : tt 4) => ($ m ! ($ arg 0 1 2 3)) ; ($ m : ident $ arg : tt 5) => ($ m ! ($ arg 0 1 2 3 4)) ; ($ m : ident $ arg : tt 6) => ($ m ! ($ arg 0 1 2 3 4 5)) ; ($ m : ident $ arg : tt 7) => ($ m ! ($ arg 0 1 2 3 4 5 6)) ; }
         macro_rules ! index_item { ($ m : ident $ arg : tt 0) => () ; ($ m : ident $ arg : tt 1) => ($ m ! ($ arg 0) ;) ; ($ m : ident $ arg : tt 2) => ($ m ! ($ arg 0 1) ;) ; ($ m : ident $ arg : tt 3) => ($ m ! ($ arg 0 1 2) ;) ; ($ m : ident $ arg : tt 4) => ($ m ! ($ arg 0 1 2 3) ;) ; ($ m : ident $ arg : tt 5) => ($ m ! ($ arg 0 1 2 3 4) ;) ; ($ m : ident $ arg : tt 6) => ($ m ! ($ arg 0 1 2 3 4 5) ;) ; ($ m : ident $ arg : tt 7) => ($ m ! ($ arg 0 1 2 3 4 5 6) ;) ; }
@@ -677,12 +594,10 @@ mod dimension {
         macro_rules ! array_zero { ([] $ ($ index : tt) *) => ([$ (sub ! ($ index 0) ,) *]) }
         macro_rules ! tuple_to_array { ([] $ ($ n : tt) *) => { $ (impl Convert for [Ix ; $ n] { type To = index ! (tuple_type [Ix] $ n) ; # [inline] fn convert (self) -> Self :: To { index ! (tuple_expr [self] $ n) } } impl IntoDimension for [Ix ; $ n] { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (self) } } impl IntoDimension for index ! (tuple_type [Ix] $ n) { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (index ! (array_expr [self] $ n)) } } impl Zero for Dim < [Ix ; $ n] > { # [inline] fn zero () -> Self { Dim :: new (index ! (array_zero [] $ n)) } fn is_zero (& self) -> bool { self . slice () . iter () . all (| x | * x == 0) } }) * } }
         index_item ! (tuple_to_array [] 7);
-    }
-    pub mod dim {
-        use super::Dimension;
-        use super::IntoDimension;
-        use crate::itertools::zip;
-        use crate::Ix;
+        
+        
+        
+        
         use std::fmt;
         #[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
         pub struct Dim<I: ?Sized> {
@@ -792,19 +707,15 @@ mod dimension {
         impl_op!(Sub, sub, SubAssign, sub_assign, sub);
         impl_op!(Mul, mul, MulAssign, mul_assign, mul);
         impl_scalar_op!(Mul, mul, MulAssign, mul_assign, mul);
-    }
-    mod dimension_trait {
-        use super::conversion::Convert;
-        use super::ops::DimAdd;
-        use crate::itertools::{enumerate, zip};
-        use crate::IntoDimension;
-        use crate::RemoveAxis;
-        use crate::{ArrayView1, ArrayViewMut1};
-        use crate::{Axis, DimMax};
-        use crate::{Dim, Ix, Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn, IxDynImpl, Ixs};
-        use alloc::vec::Vec;
+        
+        
+        
+        
+        
+        
+        
+        
         use std::fmt::Debug;
-        use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
         pub trait Dimension:
             Clone
             + Eq
@@ -1118,11 +1029,8 @@ mod dimension {
                 unimplemented!()
             }
         }
-    }
-    mod dynindeximpl {
-        use crate::imp_prelude::*;
+        
         use alloc::boxed::Box;
-        use alloc::vec::Vec;
         use std::hash::{Hash, Hasher};
         use std::ops::{Deref, DerefMut};
         const CAP: usize = 4;
@@ -1159,7 +1067,6 @@ mod dimension {
                 unimplemented!()
             }
         }
-        use num_traits::Zero;
         impl<T: Copy + Zero> IxDynRepr<T> {
             pub fn copy_from(x: &[T]) -> Self {
                 if x.len() <= CAP {
@@ -1247,20 +1154,14 @@ mod dimension {
                 }
             }
         }
-    }
-    mod ndindex {
-        use crate::{
-            Dim, Dimension, IntoDimension, Ix, Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn, IxDynImpl,
-        };
+        
         impl<'a> IntoDimension for &'a [Ix] {
             type Dim = IxDyn;
             fn into_dimension(self) -> Self::Dim {
                 Dim(IxDynImpl::from(self))
             }
         }
-    }
-    mod ops {
-        use crate::imp_prelude::*;
+        
         pub trait DimAdd<D: Dimension> {
             type Output: Dimension;
         }
@@ -1321,9 +1222,7 @@ mod dimension {
         impl<D: Dimension> DimAdd<D> for IxDyn {
             type Output = IxDyn;
         }
-    }
-    mod remove_axis {
-        use crate::{Axis, Dim, Dimension, Ix, Ix0, Ix1};
+        
         pub trait RemoveAxis: Dimension {
             fn remove_axis(&self, axis: Axis) -> Self::Smaller;
         }
@@ -1341,7 +1240,6 @@ mod dimension {
         }
         macro_rules ! impl_remove_axis_array (($ ($ n : expr) ,*) => ($ (impl RemoveAxis for Dim < [Ix ; $ n] > { # [inline] fn remove_axis (& self , axis : Axis) -> Self :: Smaller { debug_assert ! (axis . index () < self . ndim ()) ; let mut result = Dim ([0 ; $ n - 1]) ; { let src = self . slice () ; let dst = result . slice_mut () ; dst [.. axis . index ()] . copy_from_slice (& src [.. axis . index ()]) ; dst [axis . index () ..] . copy_from_slice (& src [axis . index () + 1 ..]) ; } result } }) *) ;) ;
         impl_remove_axis_array!(3, 4, 5, 6);
-    }
     pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ShapeError> {
         let size_nonzero = dim
             .slice()
@@ -1367,23 +1265,8 @@ mod dimension {
         debug_assert!(offset >= 0);
         offset as usize
     }
-}
-mod imp_prelude {
-    pub use crate::prelude::*;
-    pub use crate::{
-        CowRepr, Data, DataMut, DataOwned, DataShared, Ix, Ixs, RawData, RawDataMut, RawViewRepr,
-        RemoveAxis, ViewRepr,
-    };
-}
-pub mod prelude {
-    pub use crate::ShapeBuilder;
-    pub use crate::{
-        ArcArray, Array, ArrayBase, ArrayView, ArrayViewMut, CowArray, RawArrayView,
-        RawArrayViewMut,
-    };
-    pub use crate::{Axis, Dim, Dimension};
-    pub use crate::{Ix0, Ix1, Ix2, Ix3, Ix4, Ix5, Ix6, IxDyn};
-}
+    
+    
 pub type Ix = usize;
 pub type Ixs = isize;
 pub struct ArrayBase<S, D>
@@ -1402,7 +1285,6 @@ pub type ArrayView<'a, A, D> = ArrayBase<ViewRepr<&'a A>, D>;
 pub type ArrayViewMut<'a, A, D> = ArrayBase<ViewRepr<&'a mut A>, D>;
 pub type RawArrayView<A, D> = ArrayBase<RawViewRepr<*const A>, D>;
 pub type RawArrayViewMut<A, D> = ArrayBase<RawViewRepr<*mut A>, D>;
-pub use data_repr::OwnedRepr;
 #[derive(Debug)]
 pub struct OwnedArcRepr<A>(Arc<OwnedRepr<A>>);
 #[derive(Copy, Clone)]
@@ -1417,9 +1299,8 @@ pub enum CowRepr<'a, A> {
     View(ViewRepr<&'a A>),
     Owned(OwnedRepr<A>),
 }
-mod impl_clone {
-    use crate::imp_prelude::*;
-    use crate::RawDataClone;
+    
+    
     impl<S: RawDataClone, D: Clone> Clone for ArrayBase<S, D> {
         fn clone(&self) -> ArrayBase<S, D> {
             unsafe {
@@ -1433,10 +1314,7 @@ mod impl_clone {
             }
         }
     }
-}
-mod impl_internal_constructors {
-    use crate::imp_prelude::*;
-    use std::ptr::NonNull;
+    
     impl<A, S> ArrayBase<S, Ix1>
     where
         S: RawData<Elem = A>,
@@ -1469,23 +1347,14 @@ mod impl_internal_constructors {
             }
         }
     }
-}
-mod impl_constructors {
-    #![allow(clippy::match_wild_err_arm)]
-    use crate::dimension;
-    use crate::dimension::offset_from_low_addr_ptr_to_logical_ptr;
-    use crate::imp_prelude::*;
-    use crate::indices;
-    use crate::iterators::to_vec_mapped;
-    use crate::StrideShape;
-    use alloc::vec::Vec;
+    
     #[cfg(not(debug_assertions))]
     #[allow(clippy::match_wild_err_arm)]
-    macro_rules ! size_of_shape_checked_unwrap { ($ dim : expr) => { match dimension :: size_of_shape_checked ($ dim) { Ok (sz) => sz , Err (_) => { panic ! ("ndarray: Shape too large, product of non-zero axis lengths overflows isize") } } } ; }
+    macro_rules ! size_of_shape_checked_unwrap { ($ dim : expr) => { match size_of_shape_checked ($ dim) { Ok (sz) => sz , Err (_) => { panic ! ("ndarray: Shape too large, product of non-zero axis lengths overflows isize") } } } ; }
     #[cfg(debug_assertions)]
     macro_rules! size_of_shape_checked_unwrap {
         ($ dim : expr) => {
-            match dimension::size_of_shape_checked($dim) {
+            match size_of_shape_checked($dim) {
                 Ok(sz) => sz,
                 Err(_) => panic!(
                     "ndarray: Shape too large, product of non-zero axis lengths \
@@ -1532,4 +1401,3 @@ mod impl_constructors {
             ArrayBase::from_data_ptr(DataOwned::new(v), ptr).with_strides_dim(strides, dim)
         }
     }
-}
