@@ -625,7 +625,6 @@ mod dimension {
         use crate::{Dim, Dimension, Ix, Ix1, IxDyn, IxDynImpl};
         use alloc::vec::Vec;
         use num_traits::Zero;
-        use std::ops::{Index, IndexMut};
         macro_rules ! index { ($ m : ident $ arg : tt 0) => ($ m ! ($ arg)) ; ($ m : ident $ arg : tt 1) => ($ m ! ($ arg 0)) ; ($ m : ident $ arg : tt 2) => ($ m ! ($ arg 0 1)) ; ($ m : ident $ arg : tt 3) => ($ m ! ($ arg 0 1 2)) ; ($ m : ident $ arg : tt 4) => ($ m ! ($ arg 0 1 2 3)) ; ($ m : ident $ arg : tt 5) => ($ m ! ($ arg 0 1 2 3 4)) ; ($ m : ident $ arg : tt 6) => ($ m ! ($ arg 0 1 2 3 4 5)) ; ($ m : ident $ arg : tt 7) => ($ m ! ($ arg 0 1 2 3 4 5 6)) ; }
         macro_rules ! index_item { ($ m : ident $ arg : tt 0) => () ; ($ m : ident $ arg : tt 1) => ($ m ! ($ arg 0) ;) ; ($ m : ident $ arg : tt 2) => ($ m ! ($ arg 0 1) ;) ; ($ m : ident $ arg : tt 3) => ($ m ! ($ arg 0 1 2) ;) ; ($ m : ident $ arg : tt 4) => ($ m ! ($ arg 0 1 2 3) ;) ; ($ m : ident $ arg : tt 5) => ($ m ! ($ arg 0 1 2 3 4) ;) ; ($ m : ident $ arg : tt 6) => ($ m ! ($ arg 0 1 2 3 4 5) ;) ; ($ m : ident $ arg : tt 7) => ($ m ! ($ arg 0 1 2 3 4 5 6) ;) ; }
         pub trait IntoDimension {
@@ -676,7 +675,7 @@ mod dimension {
         macro_rules ! tuple_expr { ([$ self_ : expr] $ ($ index : tt) *) => (($ ($ self_ [$ index] ,) *)) }
         macro_rules ! array_expr { ([$ self_ : expr] $ ($ index : tt) *) => ([$ ($ self_ . $ index ,) *]) }
         macro_rules ! array_zero { ([] $ ($ index : tt) *) => ([$ (sub ! ($ index 0) ,) *]) }
-        macro_rules ! tuple_to_array { ([] $ ($ n : tt) *) => { $ (impl Convert for [Ix ; $ n] { type To = index ! (tuple_type [Ix] $ n) ; # [inline] fn convert (self) -> Self :: To { index ! (tuple_expr [self] $ n) } } impl IntoDimension for [Ix ; $ n] { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (self) } } impl IntoDimension for index ! (tuple_type [Ix] $ n) { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (index ! (array_expr [self] $ n)) } } impl Index < usize > for Dim < [Ix ; $ n] > { type Output = usize ; # [inline (always)] fn index (& self , index : usize) -> & Self :: Output { & self . ix () [index] } } impl IndexMut < usize > for Dim < [Ix ; $ n] > { # [inline (always)] fn index_mut (& mut self , index : usize) -> & mut Self :: Output { & mut self . ixm () [index] } } impl Zero for Dim < [Ix ; $ n] > { # [inline] fn zero () -> Self { Dim :: new (index ! (array_zero [] $ n)) } fn is_zero (& self) -> bool { self . slice () . iter () . all (| x | * x == 0) } }) * } }
+        macro_rules ! tuple_to_array { ([] $ ($ n : tt) *) => { $ (impl Convert for [Ix ; $ n] { type To = index ! (tuple_type [Ix] $ n) ; # [inline] fn convert (self) -> Self :: To { index ! (tuple_expr [self] $ n) } } impl IntoDimension for [Ix ; $ n] { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (self) } } impl IntoDimension for index ! (tuple_type [Ix] $ n) { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (index ! (array_expr [self] $ n)) } } impl Zero for Dim < [Ix ; $ n] > { # [inline] fn zero () -> Self { Dim :: new (index ! (array_zero [] $ n)) } fn is_zero (& self) -> bool { self . slice () . iter () . all (| x | * x == 0) } }) * } }
         index_item ! (tuple_to_array [] 7);
     }
     pub mod dim {
@@ -806,7 +805,6 @@ mod dimension {
         use alloc::vec::Vec;
         use std::fmt::Debug;
         use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
-        use std::ops::{Index, IndexMut};
         pub trait Dimension:
             Clone
             + Eq
@@ -814,7 +812,6 @@ mod dimension {
             + Send
             + Sync
             + Default
-            + IndexMut<usize, Output = usize>
             + Add<Self, Output = Self>
             + AddAssign
             + for<'x> AddAssign<&'x Self>
@@ -1121,24 +1118,13 @@ mod dimension {
                 unimplemented!()
             }
         }
-        impl Index<usize> for Dim<IxDynImpl> {
-            type Output = <IxDynImpl as Index<usize>>::Output;
-            fn index(&self, index: usize) -> &Self::Output {
-                unimplemented!()
-            }
-        }
-        impl IndexMut<usize> for Dim<IxDynImpl> {
-            fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-                unimplemented!()
-            }
-        }
     }
     mod dynindeximpl {
         use crate::imp_prelude::*;
         use alloc::boxed::Box;
         use alloc::vec::Vec;
         use std::hash::{Hash, Hasher};
-        use std::ops::{Deref, DerefMut, Index, IndexMut};
+        use std::ops::{Deref, DerefMut};
         const CAP: usize = 4;
         #[derive(Debug)]
         enum IxDynRepr<T> {
@@ -1230,15 +1216,6 @@ mod dimension {
             #[inline]
             fn from(ix: Vec<Ix>) -> Self {
                 IxDynImpl(IxDynRepr::from_vec_auto(ix))
-            }
-        }
-        impl<J> Index<J> for IxDynImpl
-        where
-            [Ix]: Index<J>,
-        {
-            type Output = <[Ix] as Index<J>>::Output;
-            fn index(&self, index: J) -> &Self::Output {
-                unimplemented!()
             }
         }
         impl Deref for IxDynImpl {
