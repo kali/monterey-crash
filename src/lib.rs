@@ -17,33 +17,23 @@ use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
 #[repr(C)]
 pub struct OwnedRepr<A> {
-    ptr: NonNull<A>,
-    len: usize,
-    capacity: usize,
+     it: Vec<A>
 }
 impl<A> OwnedRepr<A> {
     pub(crate) fn from(v: Vec<A>) -> Self {
-        let mut v = ManuallyDrop::new(v);
-        let len = v.len();
-        let capacity = v.capacity();
-        let ptr = nonnull_from_vec_data(&mut v);
-        Self { ptr, len, capacity }
+        Self { it: v }
     }
     pub(crate) fn as_slice(&self) -> &[A] {
-        unsafe { std::slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
+        &self.it
     }
     pub(crate) fn as_ptr(&self) -> *const A {
-        self.ptr.as_ptr()
+        self.it.as_ptr()
     }
     pub(crate) fn as_nonnull_mut(&mut self) -> NonNull<A> {
-        self.ptr
+        NonNull::new(self.it.as_mut_ptr()).unwrap()
     }
     fn take_as_vec(&mut self) -> Vec<A> {
-        let capacity = self.capacity;
-        let len = self.len;
-        self.len = 0;
-        self.capacity = 0;
-        unsafe { Vec::from_raw_parts(self.ptr.as_ptr(), len, capacity) }
+        std::mem::take(&mut self.it)
     }
 }
 impl<A> Clone for OwnedRepr<A>
@@ -56,12 +46,6 @@ where
 }
 impl<A> Drop for OwnedRepr<A> {
     fn drop(&mut self) {
-        if self.capacity > 0 {
-            if !mem::needs_drop::<A>() {
-                unimplemented!()
-            }
-            self.take_as_vec();
-        }
     }
 }
 use std::mem::size_of;
