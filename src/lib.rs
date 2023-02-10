@@ -4,11 +4,6 @@ pub fn Ix1(i0: Ix) -> Ix1 {
 }
 pub type Ix0 = Dim<[Ix; 0]>;
 pub type Ix1 = Dim<[Ix; 1]>;
-pub type Ix2 = Dim<[Ix; 2]>;
-pub type Ix3 = Dim<[Ix; 3]>;
-pub type Ix4 = Dim<[Ix; 4]>;
-pub type Ix5 = Dim<[Ix; 5]>;
-pub type Ix6 = Dim<[Ix; 6]>;
 pub type IxDyn = Dim<IxDynImpl>;
 pub(crate) fn zip<I, J>(i: I, j: J) -> std::iter::Zip<I::IntoIter, J::IntoIter>
 where
