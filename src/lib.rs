@@ -22,7 +22,6 @@ where
 {
     i.into_iter().zip(j)
 }
-macro_rules ! izip { (@ closure $ p : pat => $ tup : expr) => { |$ p | $ tup } ; (@ closure $ p : pat => ($ ($ tup : tt) *) , $ _iter : expr $ (, $ tail : expr) *) => { izip ! (@ closure ($ p , b) => ($ ($ tup) *, b) $ (, $ tail) *) } ; ($ first : expr $ (,) *) => { IntoIterator :: into_iter ($ first) } ; ($ first : expr , $ second : expr $ (,) *) => { izip ! ($ first) . zip ($ second) } ; ($ first : expr $ (, $ rest : expr) * $ (,) *) => { izip ! ($ first) $ (. zip ($ rest)) * . map (izip ! (@ closure a => (a) $ (, $ rest) *)) } ; }
 use std::mem;
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
@@ -83,7 +82,10 @@ pub unsafe trait RawData: Sized {
 }
 #[allow(clippy::missing_safety_doc)]
 pub unsafe trait RawDataClone: RawData {
-    unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>);
+    unsafe fn clone_with_ptr(
+        &self,
+        ptr: NonNull<Self::Elem>,
+    ) -> (Self, NonNull<Self::Elem>);
 }
 #[allow(clippy::missing_safety_doc)]
 pub unsafe trait Data: RawData {
@@ -135,12 +137,15 @@ unsafe impl<A> RawDataClone for OwnedRepr<A>
 where
     A: Clone,
 {
-    unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>) {
+    unsafe fn clone_with_ptr(
+        &self,
+        ptr: NonNull<Self::Elem>,
+    ) -> (Self, NonNull<Self::Elem>) {
         let mut u = self.clone();
         let mut new_ptr = u.as_nonnull_mut();
         if size_of::<A>() != 0 {
-            let our_off =
-                (ptr.as_ptr() as isize - self.as_ptr() as isize) / mem::size_of::<A>() as isize;
+            let our_off = (ptr.as_ptr() as isize - self.as_ptr() as isize)
+                / mem::size_of::<A>() as isize;
             new_ptr = NonNull::new(new_ptr.as_ptr().offset(our_off)).unwrap();
         }
         (u, new_ptr)
@@ -163,16 +168,30 @@ unsafe impl<A> DataOwned for OwnedRepr<A> {
         OwnedRepr::from(elements)
     }
 }
-#[derive(Clone)]
-pub struct ShapeError {
+pub struct ShapeError {}
+#[automatically_derived]
+impl ::core::clone::Clone for ShapeError {
+    #[inline]
+    fn clone(&self) -> ShapeError {
+        ShapeError {}
+    }
 }
 pub(crate) fn nonnull_from_vec_data<T>(v: &mut Vec<T>) -> NonNull<T> {
     unsafe { NonNull::new_unchecked(v.as_mut_ptr()) }
 }
-#[derive(Clone)]
 pub struct IndicesIter<D> {
     dim: D,
     index: Option<D>,
+}
+#[automatically_derived]
+impl<D: ::core::clone::Clone> ::core::clone::Clone for IndicesIter<D> {
+    #[inline]
+    fn clone(&self) -> IndicesIter<D> {
+        IndicesIter {
+            dim: ::core::clone::Clone::clone(&self.dim),
+            index: ::core::clone::Clone::clone(&self.index),
+        }
+    }
 }
 pub fn indices<E>(shape: E) -> Indices<E::Dim>
 where
@@ -215,7 +234,10 @@ where
         (l, Some(l))
     }
 }
-impl<D> ExactSizeIterator for IndicesIter<D> where D: Dimension {}
+impl<D> ExactSizeIterator for IndicesIter<D>
+where
+    D: Dimension,
+{}
 impl<D> IntoIterator for Indices<D>
 where
     D: Dimension,
@@ -224,18 +246,13 @@ where
     type IntoIter = IndicesIter<D>;
     fn into_iter(self) -> Self::IntoIter {
         let sz = self.dim.size();
-        let index = if sz != 0 {
-            Some(self.start)
-        } else {
-            std::process::abort()
-        };
+        let index = if sz != 0 { Some(self.start) } else { std::process::abort() };
         IndicesIter {
             index,
             dim: self.dim,
         }
     }
 }
-#[derive(Copy, Clone)]
 pub struct Indices<D>
 where
     D: Dimension,
@@ -243,10 +260,31 @@ where
     start: D,
     dim: D,
 }
+#[automatically_derived]
+impl<D: ::core::marker::Copy> ::core::marker::Copy for Indices<D>
+where
+    D: Dimension,
+{}
+#[automatically_derived]
+impl<D: ::core::clone::Clone> ::core::clone::Clone for Indices<D>
+where
+    D: Dimension,
+{
+    #[inline]
+    fn clone(&self) -> Indices<D> {
+        Indices {
+            start: ::core::clone::Clone::clone(&self.start),
+            dim: ::core::clone::Clone::clone(&self.dim),
+        }
+    }
+}
 use std::ptr;
 #[allow(clippy::missing_safety_doc)]
 pub unsafe trait TrustedIterator {}
-unsafe impl<D> TrustedIterator for IndicesIter<D> where D: Dimension {}
+unsafe impl<D> TrustedIterator for IndicesIter<D>
+where
+    D: Dimension,
+{}
 pub fn to_vec_mapped<I, F, B>(iter: I, mut f: F) -> Vec<B>
 where
     I: TrustedIterator + ExactSizeIterator,
@@ -256,36 +294,86 @@ where
     let mut result = Vec::with_capacity(size);
     let mut out_ptr = result.as_mut_ptr();
     let mut len = 0;
-    iter.fold((), |(), elt| unsafe {
-        ptr::write(out_ptr, f(elt));
-        len += 1;
-        result.set_len(len);
-        out_ptr = out_ptr.offset(1);
-    });
+    iter.fold(
+        (),
+        |(), elt| unsafe {
+            ptr::write(out_ptr, f(elt));
+            len += 1;
+            result.set_len(len);
+            out_ptr = out_ptr.offset(1);
+        },
+    );
     result
 }
-#[derive(Copy, Clone)]
 pub struct Shape<D> {
     pub(crate) dim: D,
     pub(crate) strides: Strides<Contiguous>,
 }
-#[derive(Copy, Clone)]
-pub(crate) enum Contiguous {}
-impl<D> Shape<D> {
-    pub(crate) fn is_c(&self) -> bool {
-        matches!(self.strides, Strides::C)
+#[automatically_derived]
+impl<D: ::core::marker::Copy> ::core::marker::Copy for Shape<D> {}
+#[automatically_derived]
+impl<D: ::core::clone::Clone> ::core::clone::Clone for Shape<D> {
+    #[inline]
+    fn clone(&self) -> Shape<D> {
+        Shape {
+            dim: ::core::clone::Clone::clone(&self.dim),
+            strides: ::core::clone::Clone::clone(&self.strides),
+        }
     }
 }
-#[derive(Copy, Clone)]
+pub(crate) enum Contiguous {}
+#[automatically_derived]
+impl ::core::marker::Copy for Contiguous {}
+#[automatically_derived]
+impl ::core::clone::Clone for Contiguous {
+    #[inline]
+    fn clone(&self) -> Contiguous {
+        *self
+    }
+}
+impl<D> Shape<D> {
+    pub(crate) fn is_c(&self) -> bool {
+        match self.strides {
+            Strides::C => true,
+            _ => false,
+        }
+    }
+}
 pub struct StrideShape<D> {
     pub(crate) dim: D,
     pub(crate) strides: Strides<D>,
 }
-#[derive(Copy, Clone)]
+#[automatically_derived]
+impl<D: ::core::marker::Copy> ::core::marker::Copy for StrideShape<D> {}
+#[automatically_derived]
+impl<D: ::core::clone::Clone> ::core::clone::Clone for StrideShape<D> {
+    #[inline]
+    fn clone(&self) -> StrideShape<D> {
+        StrideShape {
+            dim: ::core::clone::Clone::clone(&self.dim),
+            strides: ::core::clone::Clone::clone(&self.strides),
+        }
+    }
+}
 pub(crate) enum Strides<D> {
     C,
     F,
     Custom(D),
+}
+#[automatically_derived]
+impl<D: ::core::marker::Copy> ::core::marker::Copy for Strides<D> {}
+#[automatically_derived]
+impl<D: ::core::clone::Clone> ::core::clone::Clone for Strides<D> {
+    #[inline]
+    fn clone(&self) -> Strides<D> {
+        match self {
+            Strides::C => Strides::C,
+            Strides::F => Strides::F,
+            Strides::Custom(__self_0) => {
+                Strides::Custom(::core::clone::Clone::clone(__self_0))
+            }
+        }
+    }
 }
 impl<D> Strides<D> {
     pub(crate) fn strides_for_dim(self, dim: &D) -> D
@@ -296,7 +384,7 @@ impl<D> Strides<D> {
             Strides::C => dim.default_strides(),
             Strides::F => dim.fortran_strides(),
             Strides::Custom(c) => {
-std::process::abort();
+                std::process::abort();
             }
         }
     }
@@ -316,7 +404,7 @@ where
         let st = if shape.is_c() {
             Strides::C
         } else {
-std::process::abort();
+            std::process::abort();
         };
         StrideShape {
             strides: st,
@@ -347,12 +435,57 @@ where
         self
     }
 }
-#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Axis(pub usize);
+#[automatically_derived]
+impl ::core::clone::Clone for Axis {
+    #[inline]
+    fn clone(&self) -> Axis {
+        *self
+    }
+}
+#[automatically_derived]
+impl ::core::marker::Copy for Axis {}
+#[automatically_derived]
+impl ::core::cmp::Eq for Axis {
+    #[inline]
+    #[doc(hidden)]
+    fn assert_receiver_is_total_eq(&self) -> () {
+    }
+}
+#[automatically_derived]
+impl ::core::hash::Hash for Axis {
+    fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
+        ::core::hash::Hash::hash(&self.0, state)
+    }
+}
+#[automatically_derived]
+impl ::core::cmp::Ord for Axis {
+    #[inline]
+    fn cmp(&self, other: &Axis) -> ::core::cmp::Ordering {
+        ::core::cmp::Ord::cmp(&self.0, &other.0)
+    }
+}
+#[automatically_derived]
+impl ::core::cmp::PartialEq for Axis {
+    #[inline]
+    fn eq(&self, other: &Axis) -> bool {
+        self.0 == other.0
+    }
+}
+#[automatically_derived]
+impl ::core::cmp::PartialOrd for Axis {
+    #[inline]
+    fn partial_cmp(
+        &self,
+        other: &Axis,
+    ) -> ::core::option::Option<::core::cmp::Ordering> {
+        ::core::cmp::PartialOrd::partial_cmp(&self.0, &other.0)
+    }
+}
 impl Axis {
     #[inline(always)]
     pub fn index(self) -> usize {
-std::process::abort();
+        std::process::abort();
     }
 }
 pub trait DimMax<Other: Dimension> {
@@ -361,37 +494,115 @@ pub trait DimMax<Other: Dimension> {
 impl<D: Dimension> DimMax<D> for D {
     type Output = D;
 }
-macro_rules! impl_broadcast_distinct_fixed {
-    ($ smaller : ty , $ larger : ty) => {
-        impl DimMax<$larger> for $smaller {
-            type Output = $larger;
-        }
-        impl DimMax<$smaller> for $larger {
-            type Output = $larger;
-        }
-    };
+impl DimMax<Ix1> for Ix0 {
+    type Output = Ix1;
 }
-impl_broadcast_distinct_fixed!(Ix0, Ix1);
-impl_broadcast_distinct_fixed!(Ix0, Ix2);
-impl_broadcast_distinct_fixed!(Ix0, Ix3);
-impl_broadcast_distinct_fixed!(Ix0, Ix4);
-impl_broadcast_distinct_fixed!(Ix0, Ix5);
-impl_broadcast_distinct_fixed!(Ix0, Ix6);
-impl_broadcast_distinct_fixed!(Ix1, Ix2);
-impl_broadcast_distinct_fixed!(Ix2, Ix3);
-impl_broadcast_distinct_fixed!(Ix3, Ix4);
-impl_broadcast_distinct_fixed!(Ix4, Ix5);
-impl_broadcast_distinct_fixed!(Ix5, Ix6);
-impl_broadcast_distinct_fixed!(Ix0, IxDyn);
-impl_broadcast_distinct_fixed!(Ix1, IxDyn);
-impl_broadcast_distinct_fixed!(Ix2, IxDyn);
-impl_broadcast_distinct_fixed!(Ix3, IxDyn);
-impl_broadcast_distinct_fixed!(Ix4, IxDyn);
-impl_broadcast_distinct_fixed!(Ix5, IxDyn);
-impl_broadcast_distinct_fixed!(Ix6, IxDyn);
+impl DimMax<Ix0> for Ix1 {
+    type Output = Ix1;
+}
+impl DimMax<Ix2> for Ix0 {
+    type Output = Ix2;
+}
+impl DimMax<Ix0> for Ix2 {
+    type Output = Ix2;
+}
+impl DimMax<Ix3> for Ix0 {
+    type Output = Ix3;
+}
+impl DimMax<Ix0> for Ix3 {
+    type Output = Ix3;
+}
+impl DimMax<Ix4> for Ix0 {
+    type Output = Ix4;
+}
+impl DimMax<Ix0> for Ix4 {
+    type Output = Ix4;
+}
+impl DimMax<Ix5> for Ix0 {
+    type Output = Ix5;
+}
+impl DimMax<Ix0> for Ix5 {
+    type Output = Ix5;
+}
+impl DimMax<Ix6> for Ix0 {
+    type Output = Ix6;
+}
+impl DimMax<Ix0> for Ix6 {
+    type Output = Ix6;
+}
+impl DimMax<Ix2> for Ix1 {
+    type Output = Ix2;
+}
+impl DimMax<Ix1> for Ix2 {
+    type Output = Ix2;
+}
+impl DimMax<Ix3> for Ix2 {
+    type Output = Ix3;
+}
+impl DimMax<Ix2> for Ix3 {
+    type Output = Ix3;
+}
+impl DimMax<Ix4> for Ix3 {
+    type Output = Ix4;
+}
+impl DimMax<Ix3> for Ix4 {
+    type Output = Ix4;
+}
+impl DimMax<Ix5> for Ix4 {
+    type Output = Ix5;
+}
+impl DimMax<Ix4> for Ix5 {
+    type Output = Ix5;
+}
+impl DimMax<Ix6> for Ix5 {
+    type Output = Ix6;
+}
+impl DimMax<Ix5> for Ix6 {
+    type Output = Ix6;
+}
+impl DimMax<IxDyn> for Ix0 {
+    type Output = IxDyn;
+}
+impl DimMax<Ix0> for IxDyn {
+    type Output = IxDyn;
+}
+impl DimMax<IxDyn> for Ix1 {
+    type Output = IxDyn;
+}
+impl DimMax<Ix1> for IxDyn {
+    type Output = IxDyn;
+}
+impl DimMax<IxDyn> for Ix2 {
+    type Output = IxDyn;
+}
+impl DimMax<Ix2> for IxDyn {
+    type Output = IxDyn;
+}
+impl DimMax<IxDyn> for Ix3 {
+    type Output = IxDyn;
+}
+impl DimMax<Ix3> for IxDyn {
+    type Output = IxDyn;
+}
+impl DimMax<IxDyn> for Ix4 {
+    type Output = IxDyn;
+}
+impl DimMax<Ix4> for IxDyn {
+    type Output = IxDyn;
+}
+impl DimMax<IxDyn> for Ix5 {
+    type Output = IxDyn;
+}
+impl DimMax<Ix5> for IxDyn {
+    type Output = IxDyn;
+}
+impl DimMax<IxDyn> for Ix6 {
+    type Output = IxDyn;
+}
+impl DimMax<Ix6> for IxDyn {
+    type Output = IxDyn;
+}
 use num_traits::Zero;
-macro_rules ! index { ($ m : ident $ arg : tt 0) => ($ m ! ($ arg)) ; ($ m : ident $ arg : tt 1) => ($ m ! ($ arg 0)) ; ($ m : ident $ arg : tt 2) => ($ m ! ($ arg 0 1)) ; ($ m : ident $ arg : tt 3) => ($ m ! ($ arg 0 1 2)) ; ($ m : ident $ arg : tt 4) => ($ m ! ($ arg 0 1 2 3)) ; ($ m : ident $ arg : tt 5) => ($ m ! ($ arg 0 1 2 3 4)) ; ($ m : ident $ arg : tt 6) => ($ m ! ($ arg 0 1 2 3 4 5)) ; ($ m : ident $ arg : tt 7) => ($ m ! ($ arg 0 1 2 3 4 5 6)) ; }
-macro_rules ! index_item { ($ m : ident $ arg : tt 0) => () ; ($ m : ident $ arg : tt 1) => ($ m ! ($ arg 0) ;) ; ($ m : ident $ arg : tt 2) => ($ m ! ($ arg 0 1) ;) ; ($ m : ident $ arg : tt 3) => ($ m ! ($ arg 0 1 2) ;) ; ($ m : ident $ arg : tt 4) => ($ m ! ($ arg 0 1 2 3) ;) ; ($ m : ident $ arg : tt 5) => ($ m ! ($ arg 0 1 2 3 4) ;) ; ($ m : ident $ arg : tt 6) => ($ m ! ($ arg 0 1 2 3 4 5) ;) ; ($ m : ident $ arg : tt 7) => ($ m ! ($ arg 0 1 2 3 4 5 6) ;) ; }
 pub trait IntoDimension {
     type Dim: Dimension;
     fn into_dimension(self) -> Self::Dim;
@@ -431,20 +642,258 @@ pub trait Convert {
     type To;
     fn convert(self) -> Self::To;
 }
-macro_rules! sub {
-    ($ _x : tt $ y : tt) => {
-        $y
-    };
+impl Convert for [Ix; 0] {
+    type To = ();
+    #[inline]
+    fn convert(self) -> Self::To {
+        ()
+    }
 }
-macro_rules ! tuple_type { ([$ T : ident] $ ($ index : tt) *) => (($ (sub ! ($ index $ T) ,) *)) }
-macro_rules ! tuple_expr { ([$ self_ : expr] $ ($ index : tt) *) => (($ ($ self_ [$ index] ,) *)) }
-macro_rules ! array_expr { ([$ self_ : expr] $ ($ index : tt) *) => ([$ ($ self_ . $ index ,) *]) }
-macro_rules ! array_zero { ([] $ ($ index : tt) *) => ([$ (sub ! ($ index 0) ,) *]) }
-macro_rules ! tuple_to_array { ([] $ ($ n : tt) *) => { $ (impl Convert for [Ix ; $ n] { type To = index ! (tuple_type [Ix] $ n) ; # [inline] fn convert (self) -> Self :: To { index ! (tuple_expr [self] $ n) } } impl IntoDimension for [Ix ; $ n] { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (self) } } impl IntoDimension for index ! (tuple_type [Ix] $ n) { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (index ! (array_expr [self] $ n)) } } impl Zero for Dim < [Ix ; $ n] > { # [inline] fn zero () -> Self { Dim :: new (index ! (array_zero [] $ n)) } fn is_zero (& self) -> bool { self . slice () . iter () . all (| x | * x == 0) } }) * } }
-index_item ! (tuple_to_array [] 7);
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
+impl IntoDimension for [Ix; 0] {
+    type Dim = Dim<[Ix; 0]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new(self)
+    }
+}
+impl IntoDimension for () {
+    type Dim = Dim<[Ix; 0]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new([])
+    }
+}
+impl Zero for Dim<[Ix; 0]> {
+    #[inline]
+    fn zero() -> Self {
+        Dim::new([])
+    }
+    fn is_zero(&self) -> bool {
+        self.slice().iter().all(|x| *x == 0)
+    }
+}
+impl Convert for [Ix; 1] {
+    type To = (Ix,);
+    #[inline]
+    fn convert(self) -> Self::To {
+        (self[0],)
+    }
+}
+impl IntoDimension for [Ix; 1] {
+    type Dim = Dim<[Ix; 1]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new(self)
+    }
+}
+impl IntoDimension for (Ix,) {
+    type Dim = Dim<[Ix; 1]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new([self.0])
+    }
+}
+impl Zero for Dim<[Ix; 1]> {
+    #[inline]
+    fn zero() -> Self {
+        Dim::new([0])
+    }
+    fn is_zero(&self) -> bool {
+        self.slice().iter().all(|x| *x == 0)
+    }
+}
+impl Convert for [Ix; 2] {
+    type To = (Ix, Ix);
+    #[inline]
+    fn convert(self) -> Self::To {
+        (self[0], self[1])
+    }
+}
+impl IntoDimension for [Ix; 2] {
+    type Dim = Dim<[Ix; 2]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new(self)
+    }
+}
+impl IntoDimension for (Ix, Ix) {
+    type Dim = Dim<[Ix; 2]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new([self.0, self.1])
+    }
+}
+impl Zero for Dim<[Ix; 2]> {
+    #[inline]
+    fn zero() -> Self {
+        Dim::new([0, 0])
+    }
+    fn is_zero(&self) -> bool {
+        self.slice().iter().all(|x| *x == 0)
+    }
+}
+impl Convert for [Ix; 3] {
+    type To = (Ix, Ix, Ix);
+    #[inline]
+    fn convert(self) -> Self::To {
+        (self[0], self[1], self[2])
+    }
+}
+impl IntoDimension for [Ix; 3] {
+    type Dim = Dim<[Ix; 3]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new(self)
+    }
+}
+impl IntoDimension for (Ix, Ix, Ix) {
+    type Dim = Dim<[Ix; 3]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new([self.0, self.1, self.2])
+    }
+}
+impl Zero for Dim<[Ix; 3]> {
+    #[inline]
+    fn zero() -> Self {
+        Dim::new([0, 0, 0])
+    }
+    fn is_zero(&self) -> bool {
+        self.slice().iter().all(|x| *x == 0)
+    }
+}
+impl Convert for [Ix; 4] {
+    type To = (Ix, Ix, Ix, Ix);
+    #[inline]
+    fn convert(self) -> Self::To {
+        (self[0], self[1], self[2], self[3])
+    }
+}
+impl IntoDimension for [Ix; 4] {
+    type Dim = Dim<[Ix; 4]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new(self)
+    }
+}
+impl IntoDimension for (Ix, Ix, Ix, Ix) {
+    type Dim = Dim<[Ix; 4]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new([self.0, self.1, self.2, self.3])
+    }
+}
+impl Zero for Dim<[Ix; 4]> {
+    #[inline]
+    fn zero() -> Self {
+        Dim::new([0, 0, 0, 0])
+    }
+    fn is_zero(&self) -> bool {
+        self.slice().iter().all(|x| *x == 0)
+    }
+}
+impl Convert for [Ix; 5] {
+    type To = (Ix, Ix, Ix, Ix, Ix);
+    #[inline]
+    fn convert(self) -> Self::To {
+        (self[0], self[1], self[2], self[3], self[4])
+    }
+}
+impl IntoDimension for [Ix; 5] {
+    type Dim = Dim<[Ix; 5]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new(self)
+    }
+}
+impl IntoDimension for (Ix, Ix, Ix, Ix, Ix) {
+    type Dim = Dim<[Ix; 5]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new([self.0, self.1, self.2, self.3, self.4])
+    }
+}
+impl Zero for Dim<[Ix; 5]> {
+    #[inline]
+    fn zero() -> Self {
+        Dim::new([0, 0, 0, 0, 0])
+    }
+    fn is_zero(&self) -> bool {
+        self.slice().iter().all(|x| *x == 0)
+    }
+}
+impl Convert for [Ix; 6] {
+    type To = (Ix, Ix, Ix, Ix, Ix, Ix);
+    #[inline]
+    fn convert(self) -> Self::To {
+        (self[0], self[1], self[2], self[3], self[4], self[5])
+    }
+}
+impl IntoDimension for [Ix; 6] {
+    type Dim = Dim<[Ix; 6]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new(self)
+    }
+}
+impl IntoDimension for (Ix, Ix, Ix, Ix, Ix, Ix) {
+    type Dim = Dim<[Ix; 6]>;
+    #[inline(always)]
+    fn into_dimension(self) -> Self::Dim {
+        Dim::new([self.0, self.1, self.2, self.3, self.4, self.5])
+    }
+}
+impl Zero for Dim<[Ix; 6]> {
+    #[inline]
+    fn zero() -> Self {
+        Dim::new([0, 0, 0, 0, 0, 0])
+    }
+    fn is_zero(&self) -> bool {
+        self.slice().iter().all(|x| *x == 0)
+    }
+}
 pub struct Dim<I: ?Sized> {
     index: I,
+}
+#[automatically_derived]
+impl<I: ::core::marker::Copy + ?Sized> ::core::marker::Copy for Dim<I> {}
+#[automatically_derived]
+impl<I: ::core::clone::Clone + ?Sized> ::core::clone::Clone for Dim<I> {
+    #[inline]
+    fn clone(&self) -> Dim<I> {
+        Dim {
+            index: ::core::clone::Clone::clone(&self.index),
+        }
+    }
+}
+#[automatically_derived]
+impl<I: ::core::cmp::PartialEq + ?Sized> ::core::cmp::PartialEq for Dim<I> {
+    #[inline]
+    fn eq(&self, other: &Dim<I>) -> bool {
+        self.index == other.index
+    }
+}
+#[automatically_derived]
+impl<I: ::core::cmp::Eq + ?Sized> ::core::cmp::Eq for Dim<I> {
+    #[inline]
+    #[doc(hidden)]
+    fn assert_receiver_is_total_eq(&self) -> () {
+    }
+}
+#[automatically_derived]
+impl<I: ::core::hash::Hash + ?Sized> ::core::hash::Hash for Dim<I> {
+    fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
+        ::core::hash::Hash::hash(&self.index, state)
+    }
+}
+#[automatically_derived]
+impl<I: ::core::default::Default + ?Sized> ::core::default::Default for Dim<I> {
+    #[inline]
+    fn default() -> Dim<I> {
+        Dim {
+            index: ::core::default::Default::default(),
+        }
+    }
 }
 impl<I> Dim<I> {
     pub(crate) fn new(index: I) -> Dim<I> {
@@ -467,110 +916,158 @@ where
     index.into_dimension()
 }
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
-macro_rules! impl_op {
-    ($ op : ident , $ op_m : ident , $ opassign : ident , $ opassign_m : ident , $ expr : ident) => {
-        impl<I> $op for Dim<I>
-        where
-            Dim<I>: Dimension,
-        {
-            type Output = Self;
-            fn $op_m(mut self, rhs: Self) -> Self {
-                $expr!(self, &rhs);
-                self
-            }
-        }
-        impl<I> $opassign for Dim<I>
-        where
-            Dim<I>: Dimension,
-        {
-            fn $opassign_m(&mut self, rhs: Self) {
-                $expr!(*self, &rhs);
-            }
-        }
-        impl<'a, I> $opassign<&'a Dim<I>> for Dim<I>
-        where
-            Dim<I>: Dimension,
-        {
-            fn $opassign_m(&mut self, rhs: &Self) {
-                for (x, &y) in zip(self.slice_mut(), rhs.slice()) {
-                    $expr!(*x, y);
-                }
-            }
-        }
-    };
-}
-macro_rules! impl_scalar_op {
-    ($ op : ident , $ op_m : ident , $ opassign : ident , $ opassign_m : ident , $ expr : ident) => {
-        impl<I> $op<Ix> for Dim<I>
-        where
-            Dim<I>: Dimension,
-        {
-            type Output = Self;
-            fn $op_m(mut self, rhs: Ix) -> Self {
-                $expr!(self, rhs);
-                self
-            }
-        }
-        impl<I> $opassign<Ix> for Dim<I>
-        where
-            Dim<I>: Dimension,
-        {
-            fn $opassign_m(&mut self, rhs: Ix) {
-                for x in self.slice_mut() {
-                    $expr!(*x, rhs);
-                }
-            }
-        }
-    };
-}
-macro_rules! add {
-    ($ x : expr , $ y : expr) => {
-        $x += $y;
-    };
-}
-macro_rules! sub {
-    ($ x : expr , $ y : expr) => {
-        $x -= $y;
-    };
-}
-macro_rules! mul {
-    ($ x : expr , $ y : expr) => {
-        $x *= $y;
-    };
-}
-impl_op!(Add, add, AddAssign, add_assign, add);
-impl_op!(Sub, sub, SubAssign, sub_assign, sub);
-impl_op!(Mul, mul, MulAssign, mul_assign, mul);
-impl_scalar_op!(Mul, mul, MulAssign, mul_assign, mul);
-pub trait Dimension:
-    Clone
-    + Eq
-    + Send
-    + Sync
-    + Default
-    + Add<Self, Output = Self>
-    + AddAssign
-    + for<'x> AddAssign<&'x Self>
-    + Sub<Self, Output = Self>
-    + SubAssign
-    + for<'x> SubAssign<&'x Self>
-    + Mul<usize, Output = Self>
-    + Mul<Self, Output = Self>
-    + MulAssign
-    + for<'x> MulAssign<&'x Self>
-    + MulAssign<usize>
-    + DimMax<Ix0, Output = Self>
-    + DimMax<Self, Output = Self>
-    + DimMax<IxDyn, Output = IxDyn>
-    + DimMax<<Self as Dimension>::Smaller, Output = Self>
-    + DimMax<<Self as Dimension>::Larger, Output = <Self as Dimension>::Larger>
-    + DimAdd<Self>
-    + DimAdd<<Self as Dimension>::Smaller>
-    + DimAdd<<Self as Dimension>::Larger>
-    + DimAdd<Ix0, Output = Self>
-    + DimAdd<Ix1, Output = <Self as Dimension>::Larger>
-    + DimAdd<IxDyn, Output = IxDyn>
+impl<I> Add for Dim<I>
+where
+    Dim<I>: Dimension,
 {
+    type Output = Self;
+    fn add(mut self, rhs: Self) -> Self {
+        self += &rhs;
+        self
+    }
+}
+impl<I> AddAssign for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    fn add_assign(&mut self, rhs: Self) {
+        *self += &rhs;
+    }
+}
+impl<'a, I> AddAssign<&'a Dim<I>> for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    fn add_assign(&mut self, rhs: &Self) {
+        for (x, &y) in zip(self.slice_mut(), rhs.slice()) {
+            *x += y;
+        }
+    }
+}
+impl<I> Sub for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    type Output = Self;
+    fn sub(mut self, rhs: Self) -> Self {
+        self -= &rhs;
+        self
+    }
+}
+impl<I> SubAssign for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    fn sub_assign(&mut self, rhs: Self) {
+        *self -= &rhs;
+    }
+}
+impl<'a, I> SubAssign<&'a Dim<I>> for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    fn sub_assign(&mut self, rhs: &Self) {
+        for (x, &y) in zip(self.slice_mut(), rhs.slice()) {
+            *x -= y;
+        }
+    }
+}
+impl<I> Mul for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    type Output = Self;
+    fn mul(mut self, rhs: Self) -> Self {
+        self *= &rhs;
+        self
+    }
+}
+impl<I> MulAssign for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    fn mul_assign(&mut self, rhs: Self) {
+        *self *= &rhs;
+    }
+}
+impl<'a, I> MulAssign<&'a Dim<I>> for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    fn mul_assign(&mut self, rhs: &Self) {
+        for (x, &y) in zip(self.slice_mut(), rhs.slice()) {
+            *x *= y;
+        }
+    }
+}
+impl<I> Mul<Ix> for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    type Output = Self;
+    fn mul(mut self, rhs: Ix) -> Self {
+        self *= rhs;
+        self
+    }
+}
+impl<I> MulAssign<Ix> for Dim<I>
+where
+    Dim<I>: Dimension,
+{
+    fn mul_assign(&mut self, rhs: Ix) {
+        for x in self.slice_mut() {
+            *x *= rhs;
+        }
+    }
+}
+pub trait Dimension: Clone + Eq + Send + Sync + Default + Add<
+        Self,
+        Output = Self,
+    > + AddAssign + for<'x> AddAssign<
+        &'x Self,
+    > + Sub<
+        Self,
+        Output = Self,
+    > + SubAssign + for<'x> SubAssign<
+        &'x Self,
+    > + Mul<
+        usize,
+        Output = Self,
+    > + Mul<
+        Self,
+        Output = Self,
+    > + MulAssign + for<'x> MulAssign<
+        &'x Self,
+    > + MulAssign<
+        usize,
+    > + DimMax<
+        Ix0,
+        Output = Self,
+    > + DimMax<
+        Self,
+        Output = Self,
+    > + DimMax<
+        IxDyn,
+        Output = IxDyn,
+    > + DimMax<
+        <Self as Dimension>::Smaller,
+        Output = Self,
+    > + DimMax<
+        <Self as Dimension>::Larger,
+        Output = <Self as Dimension>::Larger,
+    > + DimAdd<
+        Self,
+    > + DimAdd<
+        <Self as Dimension>::Smaller,
+    > + DimAdd<
+        <Self as Dimension>::Larger,
+    > + DimAdd<
+        Ix0,
+        Output = Self,
+    > + DimAdd<
+        Ix1,
+        Output = <Self as Dimension>::Larger,
+    > + DimAdd<IxDyn, Output = IxDyn> {
     const NDIM: Option<usize>;
     type Pattern: IntoDimension<Dim = Self> + Clone + PartialEq + Eq + Default;
     type Smaller: Dimension;
@@ -629,11 +1126,7 @@ pub trait Dimension:
                 std::process::abort()
             }
         }
-        if done {
-            std::process::abort()
-        } else {
-            None
-        }
+        if done { std::process::abort() } else { None }
     }
     #[inline]
     fn next_for_f(&self, index: &mut Self) -> bool {
@@ -780,13 +1273,84 @@ impl Dimension for Dim<[Ix; 3]> {
         std::process::abort()
     }
 }
-macro_rules ! large_dim { ($ n : expr , $ name : ident , $ pattern : ty , $ larger : ty , { $ ($ insert_axis : tt) * }) => (impl Dimension for Dim < [Ix ; $ n] > { const NDIM : Option < usize > = Some ($ n) ; type Pattern = $ pattern ; type Smaller = Dim < [Ix ; $ n - 1] >; type Larger = $ larger ; # [inline] fn ndim (& self) -> usize { $ n } # [inline] fn into_pattern (self) -> Self :: Pattern { self . ix () . convert () } # [inline] fn slice (& self) -> & [Ix] { self . ix () } # [inline] fn slice_mut (& mut self) -> & mut [Ix] { self . ixm () } # [inline] fn zeros (ndim : usize) -> Self { Self :: default () } $ ($ insert_axis) *  }) }
-large_dim!(4, Ix4, (Ix, Ix, Ix, Ix), Ix5, {
-});
-large_dim!(5, Ix5, (Ix, Ix, Ix, Ix, Ix), Ix6, {
-});
-large_dim!(6, Ix6, (Ix, Ix, Ix, Ix, Ix, Ix), IxDyn, {
-});
+impl Dimension for Dim<[Ix; 4]> {
+    const NDIM: Option<usize> = Some(4);
+    type Pattern = (Ix, Ix, Ix, Ix);
+    type Smaller = Dim<[Ix; 4 - 1]>;
+    type Larger = Ix5;
+    #[inline]
+    fn ndim(&self) -> usize {
+        4
+    }
+    #[inline]
+    fn into_pattern(self) -> Self::Pattern {
+        self.ix().convert()
+    }
+    #[inline]
+    fn slice(&self) -> &[Ix] {
+        self.ix()
+    }
+    #[inline]
+    fn slice_mut(&mut self) -> &mut [Ix] {
+        self.ixm()
+    }
+    #[inline]
+    fn zeros(ndim: usize) -> Self {
+        Self::default()
+    }
+}
+impl Dimension for Dim<[Ix; 5]> {
+    const NDIM: Option<usize> = Some(5);
+    type Pattern = (Ix, Ix, Ix, Ix, Ix);
+    type Smaller = Dim<[Ix; 5 - 1]>;
+    type Larger = Ix6;
+    #[inline]
+    fn ndim(&self) -> usize {
+        5
+    }
+    #[inline]
+    fn into_pattern(self) -> Self::Pattern {
+        self.ix().convert()
+    }
+    #[inline]
+    fn slice(&self) -> &[Ix] {
+        self.ix()
+    }
+    #[inline]
+    fn slice_mut(&mut self) -> &mut [Ix] {
+        self.ixm()
+    }
+    #[inline]
+    fn zeros(ndim: usize) -> Self {
+        Self::default()
+    }
+}
+impl Dimension for Dim<[Ix; 6]> {
+    const NDIM: Option<usize> = Some(6);
+    type Pattern = (Ix, Ix, Ix, Ix, Ix, Ix);
+    type Smaller = Dim<[Ix; 6 - 1]>;
+    type Larger = IxDyn;
+    #[inline]
+    fn ndim(&self) -> usize {
+        6
+    }
+    #[inline]
+    fn into_pattern(self) -> Self::Pattern {
+        self.ix().convert()
+    }
+    #[inline]
+    fn slice(&self) -> &[Ix] {
+        self.ix()
+    }
+    #[inline]
+    fn slice_mut(&mut self) -> &mut [Ix] {
+        self.ixm()
+    }
+    #[inline]
+    fn zeros(ndim: usize) -> Self {
+        Self::default()
+    }
+}
 impl Dimension for IxDyn {
     const NDIM: Option<usize> = None;
     type Pattern = Self;
@@ -824,9 +1388,7 @@ impl<T> Deref for IxDynRepr<T> {
     type Target = [T];
     fn deref(&self) -> &[T] {
         match *self {
-            IxDynRepr::Inline(len, ref ar) => {
-                unsafe { ar.get_unchecked(..len as usize) }
-            }
+            IxDynRepr::Inline(len, ref ar) => unsafe { ar.get_unchecked(..len as usize) }
             IxDynRepr::Alloc(ref ar) => ar,
         }
     }
@@ -859,11 +1421,7 @@ impl<T: Copy + Zero> IxDynRepr<T> {
 }
 impl<T: Copy + Zero> IxDynRepr<T> {
     fn from_vec_auto(v: Vec<T>) -> Self {
-        if v.len() <= CAP {
-            Self::copy_from(&v)
-        } else {
-            std::process::abort()
-        }
+        if v.len() <= CAP { Self::copy_from(&v) } else { std::process::abort() }
     }
 }
 impl<T: Copy> IxDynRepr<T> {
@@ -890,8 +1448,41 @@ impl<T: Hash> Hash for IxDynRepr<T> {
         std::process::abort()
     }
 }
-#[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct IxDynImpl(IxDynRepr<Ix>);
+#[automatically_derived]
+impl ::core::clone::Clone for IxDynImpl {
+    #[inline]
+    fn clone(&self) -> IxDynImpl {
+        IxDynImpl(::core::clone::Clone::clone(&self.0))
+    }
+}
+#[automatically_derived]
+impl ::core::cmp::PartialEq for IxDynImpl {
+    #[inline]
+    fn eq(&self, other: &IxDynImpl) -> bool {
+        self.0 == other.0
+    }
+}
+#[automatically_derived]
+impl ::core::cmp::Eq for IxDynImpl {
+    #[inline]
+    #[doc(hidden)]
+    fn assert_receiver_is_total_eq(&self) -> () {
+    }
+}
+#[automatically_derived]
+impl ::core::hash::Hash for IxDynImpl {
+    fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
+        ::core::hash::Hash::hash(&self.0, state)
+    }
+}
+#[automatically_derived]
+impl ::core::default::Default for IxDynImpl {
+    #[inline]
+    fn default() -> IxDynImpl {
+        IxDynImpl(::core::default::Default::default())
+    }
+}
 impl<'a> From<&'a [Ix]> for IxDynImpl {
     #[inline]
     fn from(ix: &'a [Ix]) -> Self {
@@ -921,11 +1512,7 @@ impl IxDyn {
     #[inline]
     pub fn zeros(n: usize) -> IxDyn {
         const ZEROS: &[usize] = &[0; 4];
-        if n <= ZEROS.len() {
-            Dim(&ZEROS[..n])
-        } else {
-            std::process::abort()
-        }
+        if n <= ZEROS.len() { Dim(&ZEROS[..n]) } else { std::process::abort() }
     }
 }
 impl<'a> IntoDimension for &'a [Ix] {
@@ -937,60 +1524,105 @@ impl<'a> IntoDimension for &'a [Ix] {
 pub trait DimAdd<D: Dimension> {
     type Output: Dimension;
 }
-macro_rules! impl_dimadd_const_out_const {
-    ($ lhs : expr , $ rhs : expr) => {
-        impl DimAdd<Dim<[usize; $rhs]>> for Dim<[usize; $lhs]> {
-            type Output = Dim<[usize; $lhs + $rhs]>;
-        }
-    };
-}
-macro_rules! impl_dimadd_const_out_dyn {
-    ($ lhs : expr , IxDyn) => {
-        impl DimAdd<IxDyn> for Dim<[usize; $lhs]> {
-            type Output = IxDyn;
-        }
-    };
-    ($ lhs : expr , $ rhs : expr) => {
-        impl DimAdd<Dim<[usize; $rhs]>> for Dim<[usize; $lhs]> {
-            type Output = IxDyn;
-        }
-    };
-}
 impl<D: Dimension> DimAdd<D> for Ix0 {
     type Output = D;
 }
-impl_dimadd_const_out_const!(1, 0);
-impl_dimadd_const_out_const!(1, 1);
-impl_dimadd_const_out_const!(1, 2);
-impl_dimadd_const_out_dyn!(1, IxDyn);
-impl_dimadd_const_out_const!(2, 0);
-impl_dimadd_const_out_const!(2, 1);
-impl_dimadd_const_out_const!(2, 2);
-impl_dimadd_const_out_const!(2, 3);
-impl_dimadd_const_out_dyn!(2, IxDyn);
-impl_dimadd_const_out_const!(3, 0);
-impl_dimadd_const_out_const!(3, 1);
-impl_dimadd_const_out_const!(3, 2);
-impl_dimadd_const_out_const!(3, 3);
-impl_dimadd_const_out_dyn!(3, 4);
-impl_dimadd_const_out_dyn!(3, IxDyn);
-impl_dimadd_const_out_const!(4, 0);
-impl_dimadd_const_out_const!(4, 1);
-impl_dimadd_const_out_dyn!(4, 3);
-impl_dimadd_const_out_dyn!(4, 4);
-impl_dimadd_const_out_dyn!(4, 5);
-impl_dimadd_const_out_dyn!(4, IxDyn);
-impl_dimadd_const_out_const!(5, 0);
-impl_dimadd_const_out_const!(5, 1);
-impl_dimadd_const_out_dyn!(5, 4);
-impl_dimadd_const_out_dyn!(5, 5);
-impl_dimadd_const_out_dyn!(5, 6);
-impl_dimadd_const_out_dyn!(5, IxDyn);
-impl_dimadd_const_out_const!(6, 0);
-impl_dimadd_const_out_dyn!(6, 1);
-impl_dimadd_const_out_dyn!(6, 5);
-impl_dimadd_const_out_dyn!(6, 6);
-impl_dimadd_const_out_dyn!(6, IxDyn);
+impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 1]> {
+    type Output = Dim<[usize; 1 + 0]>;
+}
+impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 1]> {
+    type Output = Dim<[usize; 1 + 1]>;
+}
+impl DimAdd<Dim<[usize; 2]>> for Dim<[usize; 1]> {
+    type Output = Dim<[usize; 1 + 2]>;
+}
+impl DimAdd<IxDyn> for Dim<[usize; 1]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 2]> {
+    type Output = Dim<[usize; 2 + 0]>;
+}
+impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 2]> {
+    type Output = Dim<[usize; 2 + 1]>;
+}
+impl DimAdd<Dim<[usize; 2]>> for Dim<[usize; 2]> {
+    type Output = Dim<[usize; 2 + 2]>;
+}
+impl DimAdd<Dim<[usize; 3]>> for Dim<[usize; 2]> {
+    type Output = Dim<[usize; 2 + 3]>;
+}
+impl DimAdd<IxDyn> for Dim<[usize; 2]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 3]> {
+    type Output = Dim<[usize; 3 + 0]>;
+}
+impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 3]> {
+    type Output = Dim<[usize; 3 + 1]>;
+}
+impl DimAdd<Dim<[usize; 2]>> for Dim<[usize; 3]> {
+    type Output = Dim<[usize; 3 + 2]>;
+}
+impl DimAdd<Dim<[usize; 3]>> for Dim<[usize; 3]> {
+    type Output = Dim<[usize; 3 + 3]>;
+}
+impl DimAdd<Dim<[usize; 4]>> for Dim<[usize; 3]> {
+    type Output = IxDyn;
+}
+impl DimAdd<IxDyn> for Dim<[usize; 3]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 4]> {
+    type Output = Dim<[usize; 4 + 0]>;
+}
+impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 4]> {
+    type Output = Dim<[usize; 4 + 1]>;
+}
+impl DimAdd<Dim<[usize; 3]>> for Dim<[usize; 4]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 4]>> for Dim<[usize; 4]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 5]>> for Dim<[usize; 4]> {
+    type Output = IxDyn;
+}
+impl DimAdd<IxDyn> for Dim<[usize; 4]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 5]> {
+    type Output = Dim<[usize; 5 + 0]>;
+}
+impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 5]> {
+    type Output = Dim<[usize; 5 + 1]>;
+}
+impl DimAdd<Dim<[usize; 4]>> for Dim<[usize; 5]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 5]>> for Dim<[usize; 5]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 6]>> for Dim<[usize; 5]> {
+    type Output = IxDyn;
+}
+impl DimAdd<IxDyn> for Dim<[usize; 5]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 6]> {
+    type Output = Dim<[usize; 6 + 0]>;
+}
+impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 6]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 5]>> for Dim<[usize; 6]> {
+    type Output = IxDyn;
+}
+impl DimAdd<Dim<[usize; 6]>> for Dim<[usize; 6]> {
+    type Output = IxDyn;
+}
+impl DimAdd<IxDyn> for Dim<[usize; 6]> {
+    type Output = IxDyn;
+}
 impl<D: Dimension> DimAdd<D> for IxDyn {
     type Output = IxDyn;
 }
@@ -1007,15 +1639,19 @@ pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ShapeError>
         Ok(dim.size())
     }
 }
-pub fn offset_from_low_addr_ptr_to_logical_ptr<D: Dimension>(dim: &D, strides: &D) -> usize {
-    let offset = izip!(dim.slice(), strides.slice()).fold(0, |_offset, (&d, &s)| {
-        let s = s as isize;
-        if s < 0 && d > 1 {
-            std::process::abort()
-        } else {
-            _offset
-        }
-    });
+pub fn offset_from_low_addr_ptr_to_logical_ptr<D: Dimension>(
+    dim: &D,
+    strides: &D,
+) -> usize {
+    let offset = IntoIterator::into_iter(dim.slice())
+        .zip(strides.slice())
+        .fold(
+            0,
+            |_offset, (&d, &s)| {
+                let s = s as isize;
+                if s < 0 && d > 1 { std::process::abort() } else { _offset }
+            },
+        );
     offset as usize
 }
 pub type Ix = usize;
@@ -1033,9 +1669,19 @@ pub type Array<A, D> = ArrayBase<OwnedRepr<A>, D>;
 pub type ArrayView<'a, A, D> = ArrayBase<ViewRepr<&'a A>, D>;
 pub type ArrayViewMut<'a, A, D> = ArrayBase<ViewRepr<&'a mut A>, D>;
 pub struct OwnedArcRepr<A>(Arc<OwnedRepr<A>>);
-#[derive(Copy, Clone)]
 pub struct ViewRepr<A> {
     life: PhantomData<A>,
+}
+#[automatically_derived]
+impl<A: ::core::marker::Copy> ::core::marker::Copy for ViewRepr<A> {}
+#[automatically_derived]
+impl<A: ::core::clone::Clone> ::core::clone::Clone for ViewRepr<A> {
+    #[inline]
+    fn clone(&self) -> ViewRepr<A> {
+        ViewRepr {
+            life: ::core::clone::Clone::clone(&self.life),
+        }
+    }
 }
 impl<S: RawDataClone, D: Clone> Clone for ArrayBase<S, D> {
     fn clone(&self) -> ArrayBase<S, D> {
@@ -1081,16 +1727,6 @@ where
         }
     }
 }
-macro_rules! size_of_shape_checked_unwrap {
-    ($ dim : expr) => {
-        match size_of_shape_checked($dim) {
-            Ok(sz) => sz,
-            Err(_) => {
-std::process::abort();
-            }
-        }
-    };
-}
 impl<S, A, D> ArrayBase<S, D>
 where
     S: DataOwned<Elem = A>,
@@ -1102,7 +1738,12 @@ where
         F: FnMut(D::Pattern) -> A,
     {
         let shape = shape.into_shape();
-        let _ = size_of_shape_checked_unwrap!(&shape.dim);
+        let _ = match size_of_shape_checked(&shape.dim) {
+            Ok(sz) => sz,
+            Err(_) => {
+                std::process::abort();
+            }
+        };
         if shape.is_c() {
             let v = to_vec_mapped(indices(shape.dim.clone()).into_iter(), f);
             unsafe { Self::from_shape_vec_unchecked(shape, v) }
@@ -1121,10 +1762,11 @@ where
     }
     unsafe fn from_vec_dim_stride_unchecked(dim: D, strides: D, mut v: Vec<A>) -> Self {
         let ptr = std::ptr::NonNull::new(
-            v.as_mut_ptr()
-                .add(offset_from_low_addr_ptr_to_logical_ptr(&dim, &strides)),
-        )
-        .unwrap();
+                v
+                    .as_mut_ptr()
+                    .add(offset_from_low_addr_ptr_to_logical_ptr(&dim, &strides)),
+            )
+            .unwrap();
         ArrayBase::from_data_ptr(DataOwned::new(v), ptr).with_strides_dim(strides, dim)
     }
 }
