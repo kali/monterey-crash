@@ -69,7 +69,7 @@ impl<A> Drop for OwnedRepr<A> {
     fn drop(&mut self) {
         if self.capacity > 0 {
             if !mem::needs_drop::<A>() {
-                unimplemented!()
+                std::process::abort()
             }
             self.take_as_vec();
         }
@@ -103,7 +103,7 @@ pub unsafe trait Data: RawData {
         Self::Elem: Clone,
         D: Dimension,
     {
-        unimplemented!()
+        std::process::abort()
     }
 }
 unsafe impl<A> RawData for OwnedArcRepr<A> {
@@ -119,7 +119,7 @@ unsafe impl<A> Data for OwnedRepr<A> {
         A: Clone,
         D: Dimension,
     {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn try_into_owned_nocopy<D>(
@@ -128,7 +128,7 @@ unsafe impl<A> Data for OwnedRepr<A> {
     where
         D: Dimension,
     {
-        unimplemented!()
+        std::process::abort()
     }
 }
 unsafe impl<A> RawDataClone for OwnedRepr<A>
@@ -227,7 +227,7 @@ where
         let index = if sz != 0 {
             Some(self.start)
         } else {
-            unimplemented!()
+            std::process::abort()
         };
         IndicesIter {
             index,
@@ -262,7 +262,6 @@ where
         result.set_len(len);
         out_ptr = out_ptr.offset(1);
     });
-    debug_assert_eq!(size, result.len());
     result
 }
 #[derive(Copy, Clone)]
@@ -297,7 +296,7 @@ impl<D> Strides<D> {
             Strides::C => dim.default_strides(),
             Strides::F => dim.fortran_strides(),
             Strides::Custom(c) => {
-                unimplemented!()
+std::process::abort();
             }
         }
     }
@@ -306,9 +305,6 @@ pub trait ShapeBuilder {
     type Dim: Dimension;
     type Strides;
     fn into_shape(self) -> Shape<Self::Dim>;
-    fn f(self) -> Shape<Self::Dim>;
-    fn set_f(self, is_f: bool) -> Shape<Self::Dim>;
-    fn strides(self, strides: Self::Strides) -> StrideShape<Self::Dim>;
 }
 impl<T, D> From<T> for StrideShape<D>
 where
@@ -320,7 +316,7 @@ where
         let st = if shape.is_c() {
             Strides::C
         } else {
-            unimplemented!()
+std::process::abort();
         };
         StrideShape {
             strides: st,
@@ -340,15 +336,6 @@ where
             strides: Strides::C,
         }
     }
-    fn f(self) -> Shape<Self::Dim> {
-        unimplemented!()
-    }
-    fn set_f(self, is_f: bool) -> Shape<Self::Dim> {
-        unimplemented!()
-    }
-    fn strides(self, st: T) -> StrideShape<Self::Dim> {
-        unimplemented!()
-    }
 }
 impl<D> ShapeBuilder for Shape<D>
 where
@@ -359,22 +346,13 @@ where
     fn into_shape(self) -> Shape<D> {
         self
     }
-    fn f(self) -> Self {
-        unimplemented!()
-    }
-    fn set_f(mut self, is_f: bool) -> Self {
-        unimplemented!()
-    }
-    fn strides(self, st: D) -> StrideShape<D> {
-        unimplemented!()
-    }
 }
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Axis(pub usize);
 impl Axis {
     #[inline(always)]
     pub fn index(self) -> usize {
-        unimplemented!()
+std::process::abort();
     }
 }
 pub trait DimMax<Other: Dimension> {
@@ -422,7 +400,7 @@ impl IntoDimension for Ix {
     type Dim = Ix1;
     #[inline(always)]
     fn into_dimension(self) -> Ix1 {
-        unimplemented!()
+        std::process::abort()
     }
 }
 impl<D> IntoDimension for D
@@ -603,18 +581,18 @@ pub trait Dimension:
         self.slice().iter().fold(1, |s, &a| s * a as usize)
     }
     fn size_checked(&self) -> Option<usize> {
-        unimplemented!()
+        std::process::abort()
     }
     fn slice(&self) -> &[Ix];
     fn slice_mut(&mut self) -> &mut [Ix];
     fn as_array_view(&self) -> ArrayView1<'_, Ix> {
-        unimplemented!()
+        std::process::abort()
     }
     fn as_array_view_mut(&mut self) -> ArrayViewMut1<'_, Ix> {
-        unimplemented!()
+        std::process::abort()
     }
     fn equal(&self, rhs: &Self) -> bool {
-        unimplemented!()
+        std::process::abort()
     }
     fn default_strides(&self) -> Self {
         let mut strides = Self::zeros(self.ndim());
@@ -632,12 +610,12 @@ pub trait Dimension:
         strides
     }
     fn fortran_strides(&self) -> Self {
-        unimplemented!()
+        std::process::abort()
     }
     fn zeros(ndim: usize) -> Self;
     #[inline]
     fn first_index(&self) -> Option<Self> {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn next_for(&self, index: Self) -> Option<Self> {
@@ -648,54 +626,54 @@ pub trait Dimension:
             if *ix == dim {
                 *ix = 0;
             } else {
-                unimplemented!()
+                std::process::abort()
             }
         }
         if done {
-            unimplemented!()
+            std::process::abort()
         } else {
             None
         }
     }
     #[inline]
     fn next_for_f(&self, index: &mut Self) -> bool {
-        unimplemented!()
+        std::process::abort()
     }
     fn strides_equivalent<D>(&self, strides1: &Self, strides2: &D) -> bool
     where
         D: Dimension,
     {
-        unimplemented!()
+        std::process::abort()
     }
     fn stride_offset(index: &Self, strides: &Self) -> isize {
-        unimplemented!()
+        std::process::abort()
     }
     fn stride_offset_checked(&self, strides: &Self, index: &Self) -> Option<isize> {
-        unimplemented!()
+        std::process::abort()
     }
     fn last_elem(&self) -> usize {
-        unimplemented!()
+        std::process::abort()
     }
     fn set_last_elem(&mut self, i: usize) {
-        unimplemented!()
+        std::process::abort()
     }
     fn is_contiguous(dim: &Self, strides: &Self) -> bool {
-        unimplemented!()
+        std::process::abort()
     }
     fn _fastest_varying_stride_order(&self) -> Self {
-        unimplemented!()
+        std::process::abort()
     }
     fn min_stride_axis(&self, strides: &Self) -> Axis {
-        unimplemented!()
+        std::process::abort()
     }
     fn max_stride_axis(&self, strides: &Self) -> Axis {
-        unimplemented!()
+        std::process::abort()
     }
     fn into_dyn(self) -> IxDyn {
-        unimplemented!()
+        std::process::abort()
     }
     fn from_dimension<D2: Dimension>(d: &D2) -> Option<Self> {
-        unimplemented!()
+        std::process::abort()
     }
 }
 impl Dimension for Dim<[Ix; 0]> {
@@ -705,23 +683,23 @@ impl Dimension for Dim<[Ix; 0]> {
     type Larger = Ix1;
     #[inline]
     fn ndim(&self) -> usize {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn slice(&self) -> &[Ix] {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn into_pattern(self) -> Self::Pattern {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn zeros(ndim: usize) -> Self {
-        unimplemented!()
+        std::process::abort()
     }
 }
 impl Dimension for Dim<[Ix; 1]> {
@@ -731,23 +709,23 @@ impl Dimension for Dim<[Ix; 1]> {
     type Larger = Ix2;
     #[inline]
     fn ndim(&self) -> usize {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn slice(&self) -> &[Ix] {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn into_pattern(self) -> Self::Pattern {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn zeros(ndim: usize) -> Self {
-        unimplemented!()
+        std::process::abort()
     }
 }
 impl Dimension for Dim<[Ix; 2]> {
@@ -757,23 +735,23 @@ impl Dimension for Dim<[Ix; 2]> {
     type Larger = Ix3;
     #[inline]
     fn ndim(&self) -> usize {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn into_pattern(self) -> Self::Pattern {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn slice(&self) -> &[Ix] {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn zeros(ndim: usize) -> Self {
-        unimplemented!()
+        std::process::abort()
     }
 }
 impl Dimension for Dim<[Ix; 3]> {
@@ -783,26 +761,26 @@ impl Dimension for Dim<[Ix; 3]> {
     type Larger = Ix4;
     #[inline]
     fn ndim(&self) -> usize {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn into_pattern(self) -> Self::Pattern {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn slice(&self) -> &[Ix] {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
-        unimplemented!()
+        std::process::abort()
     }
     #[inline]
     fn zeros(ndim: usize) -> Self {
-        unimplemented!()
+        std::process::abort()
     }
 }
-macro_rules ! large_dim { ($ n : expr , $ name : ident , $ pattern : ty , $ larger : ty , { $ ($ insert_axis : tt) * }) => (impl Dimension for Dim < [Ix ; $ n] > { const NDIM : Option < usize > = Some ($ n) ; type Pattern = $ pattern ; type Smaller = Dim < [Ix ; $ n - 1] >; type Larger = $ larger ; # [inline] fn ndim (& self) -> usize { $ n } # [inline] fn into_pattern (self) -> Self :: Pattern { self . ix () . convert () } # [inline] fn slice (& self) -> & [Ix] { self . ix () } # [inline] fn slice_mut (& mut self) -> & mut [Ix] { self . ixm () } # [inline] fn zeros (ndim : usize) -> Self { assert_eq ! (ndim , $ n) ; Self :: default () } $ ($ insert_axis) *  }) }
+macro_rules ! large_dim { ($ n : expr , $ name : ident , $ pattern : ty , $ larger : ty , { $ ($ insert_axis : tt) * }) => (impl Dimension for Dim < [Ix ; $ n] > { const NDIM : Option < usize > = Some ($ n) ; type Pattern = $ pattern ; type Smaller = Dim < [Ix ; $ n - 1] >; type Larger = $ larger ; # [inline] fn ndim (& self) -> usize { $ n } # [inline] fn into_pattern (self) -> Self :: Pattern { self . ix () . convert () } # [inline] fn slice (& self) -> & [Ix] { self . ix () } # [inline] fn slice_mut (& mut self) -> & mut [Ix] { self . ixm () } # [inline] fn zeros (ndim : usize) -> Self { Self :: default () } $ ($ insert_axis) *  }) }
 large_dim!(4, Ix4, (Ix, Ix, Ix, Ix), Ix5, {
 });
 large_dim!(5, Ix5, (Ix, Ix, Ix, Ix, Ix), Ix6, {
@@ -847,7 +825,6 @@ impl<T> Deref for IxDynRepr<T> {
     fn deref(&self) -> &[T] {
         match *self {
             IxDynRepr::Inline(len, ref ar) => {
-                debug_assert!(len as usize <= ar.len());
                 unsafe { ar.get_unchecked(..len as usize) }
             }
             IxDynRepr::Alloc(ref ar) => ar,
@@ -858,7 +835,6 @@ impl<T> DerefMut for IxDynRepr<T> {
     fn deref_mut(&mut self) -> &mut [T] {
         match *self {
             IxDynRepr::Inline(len, ref mut ar) => {
-                debug_assert!(len as usize <= ar.len());
                 unsafe { ar.get_unchecked_mut(..len as usize) }
             }
             IxDynRepr::Alloc(ref mut ar) => ar,
@@ -867,7 +843,7 @@ impl<T> DerefMut for IxDynRepr<T> {
 }
 impl Default for IxDynRepr<Ix> {
     fn default() -> Self {
-        unimplemented!()
+        std::process::abort()
     }
 }
 impl<T: Copy + Zero> IxDynRepr<T> {
@@ -877,7 +853,7 @@ impl<T: Copy + Zero> IxDynRepr<T> {
             arr[..x.len()].copy_from_slice(x);
             IxDynRepr::Inline(x.len() as _, arr)
         } else {
-            unimplemented!()
+            std::process::abort()
         }
     }
 }
@@ -886,13 +862,13 @@ impl<T: Copy + Zero> IxDynRepr<T> {
         if v.len() <= CAP {
             Self::copy_from(&v)
         } else {
-            unimplemented!()
+            std::process::abort()
         }
     }
 }
 impl<T: Copy> IxDynRepr<T> {
     fn from(x: &[T]) -> Self {
-        unimplemented!()
+        std::process::abort()
     }
 }
 impl<T: Copy> Clone for IxDynRepr<T> {
@@ -906,12 +882,12 @@ impl<T: Copy> Clone for IxDynRepr<T> {
 impl<T: Eq> Eq for IxDynRepr<T> {}
 impl<T: PartialEq> PartialEq for IxDynRepr<T> {
     fn eq(&self, rhs: &Self) -> bool {
-        unimplemented!()
+        std::process::abort()
     }
 }
 impl<T: Hash> Hash for IxDynRepr<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        unimplemented!()
+        std::process::abort()
     }
 }
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
@@ -948,7 +924,7 @@ impl IxDyn {
         if n <= ZEROS.len() {
             Dim(&ZEROS[..n])
         } else {
-            unimplemented!()
+            std::process::abort()
         }
     }
 }
@@ -1026,7 +1002,7 @@ pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ShapeError>
         .try_fold(1usize, |acc, &d| acc.checked_mul(d))
         .unwrap();
     if size_nonzero > ::std::isize::MAX as usize {
-        unimplemented!()
+        std::process::abort()
     } else {
         Ok(dim.size())
     }
@@ -1035,12 +1011,11 @@ pub fn offset_from_low_addr_ptr_to_logical_ptr<D: Dimension>(dim: &D, strides: &
     let offset = izip!(dim.slice(), strides.slice()).fold(0, |_offset, (&d, &s)| {
         let s = s as isize;
         if s < 0 && d > 1 {
-            unimplemented!()
+            std::process::abort()
         } else {
             _offset
         }
     });
-    debug_assert!(offset >= 0);
     offset as usize
 }
 pub type Ix = usize;
@@ -1098,7 +1073,6 @@ where
     where
         E: Dimension,
     {
-        debug_assert_eq!(strides.ndim(), dim.ndim());
         ArrayBase {
             data: self.data,
             ptr: self.ptr,
@@ -1107,28 +1081,13 @@ where
         }
     }
 }
-#[cfg(not(debug_assertions))]
-#[allow(clippy::match_wild_err_arm)]
 macro_rules! size_of_shape_checked_unwrap {
     ($ dim : expr) => {
         match size_of_shape_checked($dim) {
             Ok(sz) => sz,
             Err(_) => {
-                panic!("ndarray: Shape too large, product of non-zero axis lengths overflows isize")
+std::process::abort();
             }
-        }
-    };
-}
-#[cfg(debug_assertions)]
-macro_rules! size_of_shape_checked_unwrap {
-    ($ dim : expr) => {
-        match size_of_shape_checked($dim) {
-            Ok(sz) => sz,
-            Err(_) => panic!(
-                "ndarray: Shape too large, product of non-zero axis lengths \
-                 overflows isize in shape {:?}",
-                $dim
-            ),
         }
     };
 }
@@ -1148,7 +1107,7 @@ where
             let v = to_vec_mapped(indices(shape.dim.clone()).into_iter(), f);
             unsafe { Self::from_shape_vec_unchecked(shape, v) }
         } else {
-            unimplemented!()
+            std::process::abort()
         }
     }
     pub unsafe fn from_shape_vec_unchecked<Sh>(shape: Sh, v: Vec<A>) -> Self
