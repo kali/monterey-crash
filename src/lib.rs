@@ -33,7 +33,6 @@ use alloc::vec::Vec;
 use std::mem;
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
-#[derive(Debug)]
 #[repr(C)]
 pub struct OwnedRepr<A> {
     ptr: NonNull<A>,
@@ -243,7 +242,7 @@ where
         }
     }
 }
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct Indices<D>
 where
     D: Dimension,
@@ -273,24 +272,24 @@ where
     debug_assert_eq!(size, result.len());
     result
 }
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct Shape<D> {
     pub(crate) dim: D,
     pub(crate) strides: Strides<Contiguous>,
 }
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub(crate) enum Contiguous {}
 impl<D> Shape<D> {
     pub(crate) fn is_c(&self) -> bool {
         matches!(self.strides, Strides::C)
     }
 }
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct StrideShape<D> {
     pub(crate) dim: D,
     pub(crate) strides: Strides<D>,
 }
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub(crate) enum Strides<D> {
     C,
     F,
@@ -377,7 +376,7 @@ where
         unimplemented!()
     }
 }
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Axis(pub usize);
 impl Axis {
     #[inline(always)]
@@ -497,14 +496,6 @@ where
 {
     index.into_dimension()
 }
-impl<I> fmt::Debug for Dim<I>
-where
-    I: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        unimplemented!()
-    }
-}
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 macro_rules! impl_op {
     ($ op : ident , $ op_m : ident , $ opassign : ident , $ opassign_m : ident , $ expr : ident) => {
@@ -581,11 +572,9 @@ impl_op!(Add, add, AddAssign, add_assign, add);
 impl_op!(Sub, sub, SubAssign, sub_assign, sub);
 impl_op!(Mul, mul, MulAssign, mul_assign, mul);
 impl_scalar_op!(Mul, mul, MulAssign, mul_assign, mul);
-use std::fmt::Debug;
 pub trait Dimension:
     Clone
     + Eq
-    + Debug
     + Send
     + Sync
     + Default
@@ -613,7 +602,7 @@ pub trait Dimension:
     + DimAdd<IxDyn, Output = IxDyn>
 {
     const NDIM: Option<usize>;
-    type Pattern: IntoDimension<Dim = Self> + Clone + Debug + PartialEq + Eq + Default;
+    type Pattern: IntoDimension<Dim = Self> + Clone + PartialEq + Eq + Default;
     type Smaller: Dimension;
     type Larger: Dimension;
     fn ndim(&self) -> usize;
@@ -858,7 +847,6 @@ use alloc::boxed::Box;
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 const CAP: usize = 4;
-#[derive(Debug)]
 enum IxDynRepr<T> {
     Inline(u32, [T; CAP]),
     Alloc(Box<[T]>),
@@ -935,7 +923,7 @@ impl<T: Hash> Hash for IxDynRepr<T> {
         unimplemented!()
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct IxDynImpl(IxDynRepr<Ix>);
 impl<'a> From<&'a [Ix]> for IxDynImpl {
     #[inline]
@@ -1078,7 +1066,6 @@ pub type ArcArray<A, D> = ArrayBase<OwnedArcRepr<A>, D>;
 pub type Array<A, D> = ArrayBase<OwnedRepr<A>, D>;
 pub type ArrayView<'a, A, D> = ArrayBase<ViewRepr<&'a A>, D>;
 pub type ArrayViewMut<'a, A, D> = ArrayBase<ViewRepr<&'a mut A>, D>;
-#[derive(Debug)]
 pub struct OwnedArcRepr<A>(Arc<OwnedRepr<A>>);
 #[derive(Copy, Clone)]
 pub struct ViewRepr<A> {
