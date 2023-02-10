@@ -342,13 +342,6 @@ where
     }
 }
 pub struct Axis(pub usize);
-#[automatically_derived]
-impl ::core::clone::Clone for Axis {
-    #[inline]
-    fn clone(&self) -> Axis {
-        unimplemented!()
-    }
-}
 pub trait DimMax<Other: Dimension> {
     type Output: Dimension;
 }
@@ -465,10 +458,6 @@ impl IntoDimension for Vec<Ix> {
     fn into_dimension(self) -> Self::Dim {
         Dim::new(IxDynImpl::from(self))
     }
-}
-pub trait Convert {
-    type To;
-    fn convert(self) -> Self::To;
 }
 impl IntoDimension for () {
     type Dim = Dim<[Ix; 0]>;
@@ -995,7 +984,6 @@ impl Dimension for IxDyn {
         IxDyn::zeros(ndim)
     }
 }
-use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 const CAP: usize = 4;
 enum IxDynRepr<T> {
