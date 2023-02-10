@@ -2,7 +2,6 @@
 pub fn Ix1(i0: Ix) -> Ix1 {
     Dim::new([i0])
 }
-pub type Ix0 = Dim<[Ix; 0]>;
 pub type Ix1 = Dim<[Ix; 1]>;
 pub type IxDyn = Dim<IxDynImpl>;
 pub(crate) fn zip<I, J>(i: I, j: J) -> std::iter::Zip<I::IntoIter, J::IntoIter>
@@ -13,11 +12,10 @@ where
     i.into_iter().zip(j)
 }
 use std::mem;
-use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
 #[repr(C)]
 pub struct OwnedRepr<A> {
-     it: Vec<A>
+    it: Vec<A>,
 }
 impl<A> OwnedRepr<A> {
     pub(crate) fn from(v: Vec<A>) -> Self {
@@ -32,9 +30,6 @@ impl<A> OwnedRepr<A> {
     pub(crate) fn as_nonnull_mut(&mut self) -> NonNull<A> {
         NonNull::new(self.it.as_mut_ptr()).unwrap()
     }
-    fn take_as_vec(&mut self) -> Vec<A> {
-        std::mem::take(&mut self.it)
-    }
 }
 impl<A> Clone for OwnedRepr<A>
 where
@@ -42,10 +37,6 @@ where
 {
     fn clone(&self) -> Self {
         Self::from(self.as_slice().to_owned())
-    }
-}
-impl<A> Drop for OwnedRepr<A> {
-    fn drop(&mut self) {
     }
 }
 use std::mem::size_of;
@@ -111,9 +102,6 @@ unsafe impl<A> DataOwned for OwnedRepr<A> {
     fn new(elements: Vec<A>) -> Self {
         OwnedRepr::from(elements)
     }
-}
-pub(crate) fn nonnull_from_vec_data<T>(v: &mut Vec<T>) -> NonNull<T> {
-    unsafe { NonNull::new_unchecked(v.as_mut_ptr()) }
 }
 pub struct IndicesIter<D> {
     dim: D,
@@ -224,9 +212,7 @@ where
 {
     fn from(value: T) -> Self {
         let shape = value.into_shape();
-        StrideShape {
-            dim: shape.dim,
-        }
+        StrideShape { dim: shape.dim }
     }
 }
 impl<T> ShapeBuilder for T
@@ -816,8 +802,8 @@ where
                 unimplemented!()
             }
         };
-            let v = to_vec_mapped(indices(shape.dim.clone()).into_iter(), f);
-            unsafe { Self::from_shape_vec_unchecked(shape, v) }
+        let v = to_vec_mapped(indices(shape.dim.clone()).into_iter(), f);
+        unsafe { Self::from_shape_vec_unchecked(shape, v) }
     }
     pub unsafe fn from_shape_vec_unchecked<Sh>(shape: Sh, v: Vec<A>) -> Self
     where
