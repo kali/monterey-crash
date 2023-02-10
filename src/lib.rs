@@ -615,7 +615,7 @@ pub trait Dimension:
     const NDIM: Option<usize>;
     type Pattern: IntoDimension<Dim = Self> + Clone + Debug + PartialEq + Eq + Default;
     type Smaller: Dimension;
-    type Larger: Dimension + RemoveAxis;
+    type Larger: Dimension;
     fn ndim(&self) -> usize;
     fn into_pattern(self) -> Self::Pattern;
     fn size(&self) -> usize {
@@ -716,10 +716,7 @@ pub trait Dimension:
     fn from_dimension<D2: Dimension>(d: &D2) -> Option<Self> {
         unimplemented!()
     }
-    fn insert_axis(&self, axis: Axis) -> Self::Larger;
-    fn try_remove_axis(&self, axis: Axis) -> Self::Smaller;
 }
-macro_rules ! impl_insert_axis_array (($ n : expr) => (# [inline] fn insert_axis (& self , axis : Axis) -> Self :: Larger { debug_assert ! (axis . index () <= $ n) ; let mut out = [1 ; $ n + 1] ; out [0 .. axis . index ()] . copy_from_slice (& self . slice () [0 .. axis . index ()]) ; out [axis . index () + 1 ..=$ n] . copy_from_slice (& self . slice () [axis . index () ..$ n]) ; Dim (out) }) ;) ;
 impl Dimension for Dim<[Ix; 0]> {
     const NDIM: Option<usize> = Some(0);
     type Pattern = ();
@@ -743,11 +740,6 @@ impl Dimension for Dim<[Ix; 0]> {
     }
     #[inline]
     fn zeros(ndim: usize) -> Self {
-        unimplemented!()
-    }
-    impl_insert_axis_array!(0);
-    #[inline]
-    fn try_remove_axis(&self, _ignore: Axis) -> Self::Smaller {
         unimplemented!()
     }
 }
@@ -776,11 +768,6 @@ impl Dimension for Dim<[Ix; 1]> {
     fn zeros(ndim: usize) -> Self {
         unimplemented!()
     }
-    impl_insert_axis_array!(1);
-    #[inline]
-    fn try_remove_axis(&self, axis: Axis) -> Self::Smaller {
-        unimplemented!()
-    }
 }
 impl Dimension for Dim<[Ix; 2]> {
     const NDIM: Option<usize> = Some(2);
@@ -805,11 +792,6 @@ impl Dimension for Dim<[Ix; 2]> {
     }
     #[inline]
     fn zeros(ndim: usize) -> Self {
-        unimplemented!()
-    }
-    impl_insert_axis_array!(2);
-    #[inline]
-    fn try_remove_axis(&self, axis: Axis) -> Self::Smaller {
         unimplemented!()
     }
 }
@@ -838,28 +820,13 @@ impl Dimension for Dim<[Ix; 3]> {
     fn zeros(ndim: usize) -> Self {
         unimplemented!()
     }
-    impl_insert_axis_array!(3);
-    #[inline]
-    fn try_remove_axis(&self, axis: Axis) -> Self::Smaller {
-        unimplemented!()
-    }
 }
-macro_rules ! large_dim { ($ n : expr , $ name : ident , $ pattern : ty , $ larger : ty , { $ ($ insert_axis : tt) * }) => (impl Dimension for Dim < [Ix ; $ n] > { const NDIM : Option < usize > = Some ($ n) ; type Pattern = $ pattern ; type Smaller = Dim < [Ix ; $ n - 1] >; type Larger = $ larger ; # [inline] fn ndim (& self) -> usize { $ n } # [inline] fn into_pattern (self) -> Self :: Pattern { self . ix () . convert () } # [inline] fn slice (& self) -> & [Ix] { self . ix () } # [inline] fn slice_mut (& mut self) -> & mut [Ix] { self . ixm () } # [inline] fn zeros (ndim : usize) -> Self { assert_eq ! (ndim , $ n) ; Self :: default () } $ ($ insert_axis) * # [inline] fn try_remove_axis (& self , axis : Axis) -> Self :: Smaller { self . remove_axis (axis) } }) }
+macro_rules ! large_dim { ($ n : expr , $ name : ident , $ pattern : ty , $ larger : ty , { $ ($ insert_axis : tt) * }) => (impl Dimension for Dim < [Ix ; $ n] > { const NDIM : Option < usize > = Some ($ n) ; type Pattern = $ pattern ; type Smaller = Dim < [Ix ; $ n - 1] >; type Larger = $ larger ; # [inline] fn ndim (& self) -> usize { $ n } # [inline] fn into_pattern (self) -> Self :: Pattern { self . ix () . convert () } # [inline] fn slice (& self) -> & [Ix] { self . ix () } # [inline] fn slice_mut (& mut self) -> & mut [Ix] { self . ixm () } # [inline] fn zeros (ndim : usize) -> Self { assert_eq ! (ndim , $ n) ; Self :: default () } $ ($ insert_axis) *  }) }
 large_dim!(4, Ix4, (Ix, Ix, Ix, Ix), Ix5, {
-    impl_insert_axis_array!(4);
 });
 large_dim!(5, Ix5, (Ix, Ix, Ix, Ix, Ix), Ix6, {
-    impl_insert_axis_array!(5);
 });
 large_dim!(6, Ix6, (Ix, Ix, Ix, Ix, Ix, Ix), IxDyn, {
-    fn insert_axis(&self, axis: Axis) -> Self::Larger {
-        debug_assert!(axis.index() <= self.ndim());
-        let mut out = Vec::with_capacity(self.ndim() + 1);
-        out.extend_from_slice(&self.slice()[0..axis.index()]);
-        out.push(1);
-        out.extend_from_slice(&self.slice()[axis.index()..self.ndim()]);
-        Dim(out)
-    }
 });
 impl Dimension for IxDyn {
     const NDIM: Option<usize> = None;
@@ -885,14 +852,6 @@ impl Dimension for IxDyn {
     #[inline]
     fn zeros(ndim: usize) -> Self {
         IxDyn::zeros(ndim)
-    }
-    #[inline]
-    fn insert_axis(&self, axis: Axis) -> Self::Larger {
-        unimplemented!()
-    }
-    #[inline]
-    fn try_remove_axis(&self, axis: Axis) -> Self::Smaller {
-        unimplemented!()
     }
 }
 use alloc::boxed::Box;
@@ -1003,11 +962,6 @@ impl DerefMut for IxDynImpl {
         &mut self.0
     }
 }
-impl RemoveAxis for Dim<IxDynImpl> {
-    fn remove_axis(&self, axis: Axis) -> Self {
-        unimplemented!()
-    }
-}
 impl IxDyn {
     #[inline]
     pub fn zeros(n: usize) -> IxDyn {
@@ -1085,23 +1039,6 @@ impl_dimadd_const_out_dyn!(6, IxDyn);
 impl<D: Dimension> DimAdd<D> for IxDyn {
     type Output = IxDyn;
 }
-pub trait RemoveAxis: Dimension {
-    fn remove_axis(&self, axis: Axis) -> Self::Smaller;
-}
-impl RemoveAxis for Dim<[Ix; 1]> {
-    #[inline]
-    fn remove_axis(&self, axis: Axis) -> Ix0 {
-        unimplemented!()
-    }
-}
-impl RemoveAxis for Dim<[Ix; 2]> {
-    #[inline]
-    fn remove_axis(&self, axis: Axis) -> Ix1 {
-        unimplemented!()
-    }
-}
-macro_rules ! impl_remove_axis_array (($ ($ n : expr) ,*) => ($ (impl RemoveAxis for Dim < [Ix ; $ n] > { # [inline] fn remove_axis (& self , axis : Axis) -> Self :: Smaller { debug_assert ! (axis . index () < self . ndim ()) ; let mut result = Dim ([0 ; $ n - 1]) ; { let src = self . slice () ; let dst = result . slice_mut () ; dst [.. axis . index ()] . copy_from_slice (& src [.. axis . index ()]) ; dst [axis . index () ..] . copy_from_slice (& src [axis . index () + 1 ..]) ; } result } }) *) ;) ;
-impl_remove_axis_array!(3, 4, 5, 6);
 pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ShapeError> {
     let size_nonzero = dim
         .slice()
