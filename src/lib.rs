@@ -229,9 +229,8 @@ where
 }
 pub struct Shape<D> {
     pub(crate) dim: D,
-    pub(crate) strides: Strides<Contiguous>,
+    pub(crate) strides: Strides,
 }
-pub(crate) enum Contiguous {}
 impl<D> Shape<D> {
     pub(crate) fn is_c(&self) -> bool {
         match self.strides {
@@ -242,24 +241,18 @@ impl<D> Shape<D> {
 }
 pub struct StrideShape<D> {
     pub(crate) dim: D,
-    pub(crate) strides: Strides<D>,
+    pub(crate) strides: Strides,
 }
-pub(crate) enum Strides<D> {
+pub(crate) enum Strides {
     C,
-    F,
-    Custom(D),
 }
-impl<D> Strides<D> {
-    pub(crate) fn strides_for_dim(self, dim: &D) -> D
+impl Strides {
+    pub(crate) fn strides_for_dim<D>(self, dim: &D) -> D
     where
         D: Dimension,
     {
         match self {
             Strides::C => dim.default_strides(),
-            Strides::F => dim.fortran_strides(),
-            Strides::Custom(c) => {
-                unimplemented!()
-            }
         }
     }
 }
