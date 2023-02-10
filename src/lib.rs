@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 #[allow(non_snake_case)]
-#[inline(always)]
 pub fn Ix1(i0: Ix) -> Ix1 {
     Dim::new([i0])
 }
@@ -76,17 +75,13 @@ impl<A> Drop for OwnedRepr<A> {
 }
 use std::mem::size_of;
 use std::mem::MaybeUninit;
-#[allow(clippy::missing_safety_doc)]
 pub unsafe trait RawData: Sized {
     type Elem;
 }
-#[allow(clippy::missing_safety_doc)]
 pub unsafe trait RawDataClone: RawData {
     unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>);
 }
-#[allow(clippy::missing_safety_doc)]
 pub unsafe trait Data: RawData {
-    #[allow(clippy::wrong_self_convention)]
     fn into_owned<D>(self_: ArrayBase<Self, D>) -> Array<Self::Elem, D>
     where
         Self::Elem: Clone,
@@ -96,14 +91,6 @@ pub unsafe trait Data: RawData {
     ) -> Result<Array<Self::Elem, D>, ArrayBase<Self, D>>
     where
         D: Dimension;
-    #[allow(clippy::wrong_self_convention)]
-    fn to_shared<D>(self_: &ArrayBase<Self, D>) -> ArcArray<Self::Elem, D>
-    where
-        Self::Elem: Clone,
-        D: Dimension,
-    {
-        unimplemented!()
-    }
 }
 unsafe impl<A> RawData for OwnedArcRepr<A> {
     type Elem = A;
@@ -112,7 +99,6 @@ unsafe impl<A> RawData for OwnedRepr<A> {
     type Elem = A;
 }
 unsafe impl<A> Data for OwnedRepr<A> {
-    #[inline]
     fn into_owned<D>(self_: ArrayBase<Self, D>) -> Array<Self::Elem, D>
     where
         A: Clone,
@@ -120,7 +106,6 @@ unsafe impl<A> Data for OwnedRepr<A> {
     {
         unimplemented!()
     }
-    #[inline]
     fn try_into_owned_nocopy<D>(
         self_: ArrayBase<Self, D>,
     ) -> Result<Array<Self::Elem, D>, ArrayBase<Self, D>>
@@ -151,7 +136,6 @@ unsafe impl<'a, A> RawData for ViewRepr<&'a A> {
 unsafe impl<'a, A> RawData for ViewRepr<&'a mut A> {
     type Elem = A;
 }
-#[allow(clippy::missing_safety_doc)]
 pub unsafe trait DataOwned: Data {
     type MaybeUninit: DataOwned<Elem = MaybeUninit<Self::Elem>>;
     fn new(elements: Vec<Self::Elem>) -> Self;
@@ -162,7 +146,6 @@ unsafe impl<A> DataOwned for OwnedRepr<A> {
         OwnedRepr::from(elements)
     }
 }
-pub struct ShapeError {}
 pub(crate) fn nonnull_from_vec_data<T>(v: &mut Vec<T>) -> NonNull<T> {
     unsafe { NonNull::new_unchecked(v.as_mut_ptr()) }
 }
@@ -185,7 +168,6 @@ where
     D: Dimension,
 {
     type Item = D::Pattern;
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let index = match self.index {
             None => return None,
@@ -239,7 +221,6 @@ where
     dim: D,
 }
 use std::ptr;
-#[allow(clippy::missing_safety_doc)]
 pub unsafe trait TrustedIterator {}
 unsafe impl<D> TrustedIterator for IndicesIter<D> where D: Dimension {}
 pub fn to_vec_mapped<I, F, B>(iter: I, mut f: F) -> Vec<B>
@@ -430,7 +411,6 @@ pub trait IntoDimension {
 }
 impl IntoDimension for Ix {
     type Dim = Ix1;
-    #[inline(always)]
     fn into_dimension(self) -> Ix1 {
         unimplemented!()
     }
@@ -440,63 +420,54 @@ where
     D: Dimension,
 {
     type Dim = D;
-    #[inline(always)]
     fn into_dimension(self) -> Self {
         self
     }
 }
 impl IntoDimension for IxDynImpl {
     type Dim = IxDyn;
-    #[inline(always)]
     fn into_dimension(self) -> Self::Dim {
         Dim::new(self)
     }
 }
 impl IntoDimension for Vec<Ix> {
     type Dim = IxDyn;
-    #[inline(always)]
     fn into_dimension(self) -> Self::Dim {
         Dim::new(IxDynImpl::from(self))
     }
 }
 impl IntoDimension for () {
     type Dim = Dim<[Ix; 0]>;
-    #[inline(always)]
     fn into_dimension(self) -> Self::Dim {
         unimplemented!()
     }
 }
 impl IntoDimension for (Ix, Ix) {
     type Dim = Dim<[Ix; 2]>;
-    #[inline(always)]
     fn into_dimension(self) -> Self::Dim {
         unimplemented!()
     }
 }
 impl IntoDimension for (Ix, Ix, Ix) {
     type Dim = Dim<[Ix; 3]>;
-    #[inline(always)]
     fn into_dimension(self) -> Self::Dim {
         unimplemented!()
     }
 }
 impl IntoDimension for (Ix, Ix, Ix, Ix) {
     type Dim = Dim<[Ix; 4]>;
-    #[inline(always)]
     fn into_dimension(self) -> Self::Dim {
         unimplemented!()
     }
 }
 impl IntoDimension for (Ix, Ix, Ix, Ix, Ix) {
     type Dim = Dim<[Ix; 5]>;
-    #[inline(always)]
     fn into_dimension(self) -> Self::Dim {
         unimplemented!()
     }
 }
 impl IntoDimension for (Ix, Ix, Ix, Ix, Ix, Ix) {
     type Dim = Dim<[Ix; 6]>;
-    #[inline(always)]
     fn into_dimension(self) -> Self::Dim {
         unimplemented!()
     }
@@ -506,7 +477,6 @@ pub struct Dim<I: ?Sized> {
 }
 #[automatically_derived]
 impl<I: ::core::clone::Clone + ?Sized> ::core::clone::Clone for Dim<I> {
-    #[inline]
     fn clone(&self) -> Dim<I> {
         Dim {
             index: ::core::clone::Clone::clone(&self.index),
@@ -515,7 +485,6 @@ impl<I: ::core::clone::Clone + ?Sized> ::core::clone::Clone for Dim<I> {
 }
 #[automatically_derived]
 impl<I: ::core::cmp::PartialEq + ?Sized> ::core::cmp::PartialEq for Dim<I> {
-    #[inline]
     fn eq(&self, other: &Dim<I>) -> bool {
         unimplemented!()
     }
@@ -524,7 +493,6 @@ impl<I: ::core::cmp::PartialEq + ?Sized> ::core::cmp::PartialEq for Dim<I> {
 impl<I: ::core::cmp::Eq + ?Sized> ::core::cmp::Eq for Dim<I> {}
 #[automatically_derived]
 impl<I: ::core::default::Default + ?Sized> ::core::default::Default for Dim<I> {
-    #[inline]
     fn default() -> Dim<I> {
         unimplemented!()
     }
@@ -533,11 +501,9 @@ impl<I> Dim<I> {
     pub(crate) fn new(index: I) -> Dim<I> {
         Dim { index }
     }
-    #[inline(always)]
     pub(crate) fn ix(&self) -> &I {
         &self.index
     }
-    #[inline(always)]
     pub(crate) fn ixm(&mut self) -> &mut I {
         &mut self.index
     }
@@ -550,126 +516,12 @@ where
     index.into_dimension()
 }
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
-impl<I> Add for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    type Output = Self;
-    fn add(mut self, rhs: Self) -> Self {
-        unimplemented!()
-    }
-}
-impl<I> AddAssign for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    fn add_assign(&mut self, rhs: Self) {
-        unimplemented!()
-    }
-}
-impl<'a, I> AddAssign<&'a Dim<I>> for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    fn add_assign(&mut self, rhs: &Self) {
-        unimplemented!()
-    }
-}
-impl<I> Sub for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    type Output = Self;
-    fn sub(mut self, rhs: Self) -> Self {
-        unimplemented!()
-    }
-}
-impl<I> SubAssign for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    fn sub_assign(&mut self, rhs: Self) {
-        unimplemented!()
-    }
-}
-impl<'a, I> SubAssign<&'a Dim<I>> for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    fn sub_assign(&mut self, rhs: &Self) {
-        unimplemented!()
-    }
-}
-impl<I> Mul for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    type Output = Self;
-    fn mul(mut self, rhs: Self) -> Self {
-        unimplemented!()
-    }
-}
-impl<I> MulAssign for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    fn mul_assign(&mut self, rhs: Self) {
-        unimplemented!()
-    }
-}
-impl<'a, I> MulAssign<&'a Dim<I>> for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    fn mul_assign(&mut self, rhs: &Self) {
-        unimplemented!()
-    }
-}
-impl<I> Mul<Ix> for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    type Output = Self;
-    fn mul(mut self, rhs: Ix) -> Self {
-        unimplemented!()
-    }
-}
-impl<I> MulAssign<Ix> for Dim<I>
-where
-    Dim<I>: Dimension,
-{
-    fn mul_assign(&mut self, rhs: Ix) {
-        unimplemented!()
-    }
-}
 pub trait Dimension:
     Clone
     + Eq
     + Send
     + Sync
     + Default
-    + Add<Self, Output = Self>
-    + AddAssign
-    + for<'x> AddAssign<&'x Self>
-    + Sub<Self, Output = Self>
-    + SubAssign
-    + for<'x> SubAssign<&'x Self>
-    + Mul<usize, Output = Self>
-    + Mul<Self, Output = Self>
-    + MulAssign
-    + for<'x> MulAssign<&'x Self>
-    + MulAssign<usize>
-    + DimMax<Ix0, Output = Self>
-    + DimMax<Self, Output = Self>
-    + DimMax<IxDyn, Output = IxDyn>
-    + DimMax<<Self as Dimension>::Smaller, Output = Self>
-    + DimMax<<Self as Dimension>::Larger, Output = <Self as Dimension>::Larger>
-    + DimAdd<Self>
-    + DimAdd<<Self as Dimension>::Smaller>
-    + DimAdd<<Self as Dimension>::Larger>
-    + DimAdd<Ix0, Output = Self>
-    + DimAdd<Ix1, Output = <Self as Dimension>::Larger>
-    + DimAdd<IxDyn, Output = IxDyn>
 {
     const NDIM: Option<usize>;
     type Pattern: IntoDimension<Dim = Self> + Clone + PartialEq + Eq + Default;
@@ -680,20 +532,8 @@ pub trait Dimension:
     fn size(&self) -> usize {
         self.slice().iter().fold(1, |s, &a| s * a as usize)
     }
-    fn size_checked(&self) -> Option<usize> {
-        unimplemented!()
-    }
     fn slice(&self) -> &[Ix];
     fn slice_mut(&mut self) -> &mut [Ix];
-    fn as_array_view(&self) -> ArrayView1<'_, Ix> {
-        unimplemented!()
-    }
-    fn as_array_view_mut(&mut self) -> ArrayViewMut1<'_, Ix> {
-        unimplemented!()
-    }
-    fn equal(&self, rhs: &Self) -> bool {
-        unimplemented!()
-    }
     fn default_strides(&self) -> Self {
         let mut strides = Self::zeros(self.ndim());
         if self.slice().iter().all(|&d| d != 0) {
@@ -713,11 +553,9 @@ pub trait Dimension:
         unimplemented!()
     }
     fn zeros(ndim: usize) -> Self;
-    #[inline]
     fn first_index(&self) -> Option<Self> {
         unimplemented!()
     }
-    #[inline]
     fn next_for(&self, index: Self) -> Option<Self> {
         let mut index = index;
         let mut done = false;
@@ -735,7 +573,6 @@ pub trait Dimension:
             None
         }
     }
-    #[inline]
     fn next_for_f(&self, index: &mut Self) -> bool {
         unimplemented!()
     }
@@ -781,23 +618,18 @@ impl Dimension for Dim<[Ix; 0]> {
     type Pattern = ();
     type Smaller = Self;
     type Larger = Ix1;
-    #[inline]
     fn ndim(&self) -> usize {
         unimplemented!()
     }
-    #[inline]
     fn slice(&self) -> &[Ix] {
         unimplemented!()
     }
-    #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
         unimplemented!()
     }
-    #[inline]
     fn into_pattern(self) -> Self::Pattern {
         unimplemented!()
     }
-    #[inline]
     fn zeros(ndim: usize) -> Self {
         unimplemented!()
     }
@@ -807,23 +639,18 @@ impl Dimension for Dim<[Ix; 1]> {
     type Pattern = Ix;
     type Smaller = Ix0;
     type Larger = Ix2;
-    #[inline]
     fn ndim(&self) -> usize {
         unimplemented!()
     }
-    #[inline]
     fn slice(&self) -> &[Ix] {
         unimplemented!()
     }
-    #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
         unimplemented!()
     }
-    #[inline]
     fn into_pattern(self) -> Self::Pattern {
         unimplemented!()
     }
-    #[inline]
     fn zeros(ndim: usize) -> Self {
         unimplemented!()
     }
@@ -833,23 +660,18 @@ impl Dimension for Dim<[Ix; 2]> {
     type Pattern = (Ix, Ix);
     type Smaller = Ix1;
     type Larger = Ix3;
-    #[inline]
     fn ndim(&self) -> usize {
         unimplemented!()
     }
-    #[inline]
     fn into_pattern(self) -> Self::Pattern {
         unimplemented!()
     }
-    #[inline]
     fn slice(&self) -> &[Ix] {
         unimplemented!()
     }
-    #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
         unimplemented!()
     }
-    #[inline]
     fn zeros(ndim: usize) -> Self {
         unimplemented!()
     }
@@ -859,23 +681,18 @@ impl Dimension for Dim<[Ix; 3]> {
     type Pattern = (Ix, Ix, Ix);
     type Smaller = Ix2;
     type Larger = Ix4;
-    #[inline]
     fn ndim(&self) -> usize {
         unimplemented!()
     }
-    #[inline]
     fn into_pattern(self) -> Self::Pattern {
         unimplemented!()
     }
-    #[inline]
     fn slice(&self) -> &[Ix] {
         unimplemented!()
     }
-    #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
         unimplemented!()
     }
-    #[inline]
     fn zeros(ndim: usize) -> Self {
         unimplemented!()
     }
@@ -885,23 +702,18 @@ impl Dimension for Dim<[Ix; 4]> {
     type Pattern = (Ix, Ix, Ix, Ix);
     type Smaller = Dim<[Ix; 4 - 1]>;
     type Larger = Ix5;
-    #[inline]
     fn ndim(&self) -> usize {
         unimplemented!()
     }
-    #[inline]
     fn into_pattern(self) -> Self::Pattern {
         unimplemented!()
     }
-    #[inline]
     fn slice(&self) -> &[Ix] {
         unimplemented!()
     }
-    #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
         unimplemented!()
     }
-    #[inline]
     fn zeros(ndim: usize) -> Self {
         unimplemented!()
     }
@@ -911,23 +723,18 @@ impl Dimension for Dim<[Ix; 5]> {
     type Pattern = (Ix, Ix, Ix, Ix, Ix);
     type Smaller = Dim<[Ix; 5 - 1]>;
     type Larger = Ix6;
-    #[inline]
     fn ndim(&self) -> usize {
         unimplemented!()
     }
-    #[inline]
     fn into_pattern(self) -> Self::Pattern {
         unimplemented!()
     }
-    #[inline]
     fn slice(&self) -> &[Ix] {
         unimplemented!()
     }
-    #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
         unimplemented!()
     }
-    #[inline]
     fn zeros(ndim: usize) -> Self {
         unimplemented!()
     }
@@ -937,23 +744,18 @@ impl Dimension for Dim<[Ix; 6]> {
     type Pattern = (Ix, Ix, Ix, Ix, Ix, Ix);
     type Smaller = Dim<[Ix; 6 - 1]>;
     type Larger = IxDyn;
-    #[inline]
     fn ndim(&self) -> usize {
         unimplemented!()
     }
-    #[inline]
     fn into_pattern(self) -> Self::Pattern {
         unimplemented!()
     }
-    #[inline]
     fn slice(&self) -> &[Ix] {
         unimplemented!()
     }
-    #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
         unimplemented!()
     }
-    #[inline]
     fn zeros(ndim: usize) -> Self {
         unimplemented!()
     }
@@ -963,23 +765,18 @@ impl Dimension for IxDyn {
     type Pattern = Self;
     type Smaller = Self;
     type Larger = Self;
-    #[inline]
     fn ndim(&self) -> usize {
         self.ix().len()
     }
-    #[inline]
     fn slice(&self) -> &[Ix] {
         self.ix()
     }
-    #[inline]
     fn slice_mut(&mut self) -> &mut [Ix] {
         self.ixm()
     }
-    #[inline]
     fn into_pattern(self) -> Self::Pattern {
         self
     }
-    #[inline]
     fn zeros(ndim: usize) -> Self {
         IxDyn::zeros(ndim)
     }
@@ -1043,14 +840,12 @@ impl<T: Copy> Clone for IxDynRepr<T> {
 pub struct IxDynImpl(IxDynRepr<Ix>);
 #[automatically_derived]
 impl ::core::clone::Clone for IxDynImpl {
-    #[inline]
     fn clone(&self) -> IxDynImpl {
         IxDynImpl(::core::clone::Clone::clone(&self.0))
     }
 }
 #[automatically_derived]
 impl ::core::cmp::PartialEq for IxDynImpl {
-    #[inline]
     fn eq(&self, other: &IxDynImpl) -> bool {
         unimplemented!()
     }
@@ -1059,38 +854,32 @@ impl ::core::cmp::PartialEq for IxDynImpl {
 impl ::core::cmp::Eq for IxDynImpl {}
 #[automatically_derived]
 impl ::core::default::Default for IxDynImpl {
-    #[inline]
     fn default() -> IxDynImpl {
         unimplemented!()
     }
 }
 impl<'a> From<&'a [Ix]> for IxDynImpl {
-    #[inline]
     fn from(ix: &'a [Ix]) -> Self {
         IxDynImpl(IxDynRepr::copy_from(ix))
     }
 }
 impl From<Vec<Ix>> for IxDynImpl {
-    #[inline]
     fn from(ix: Vec<Ix>) -> Self {
         IxDynImpl(IxDynRepr::from_vec_auto(ix))
     }
 }
 impl Deref for IxDynImpl {
     type Target = [Ix];
-    #[inline]
     fn deref(&self) -> &[Ix] {
         &self.0
     }
 }
 impl DerefMut for IxDynImpl {
-    #[inline]
     fn deref_mut(&mut self) -> &mut [Ix] {
         &mut self.0
     }
 }
 impl IxDyn {
-    #[inline]
     pub fn zeros(n: usize) -> IxDyn {
         const ZEROS: &[usize] = &[0; 4];
         if n <= ZEROS.len() {
@@ -1211,7 +1000,7 @@ impl DimAdd<IxDyn> for Dim<[usize; 6]> {
 impl<D: Dimension> DimAdd<D> for IxDyn {
     type Output = IxDyn;
 }
-pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ShapeError> {
+pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ()> {
     let size_nonzero = dim
         .slice()
         .iter()
@@ -1247,7 +1036,6 @@ where
     dim: D,
     strides: D,
 }
-pub type ArcArray<A, D> = ArrayBase<OwnedArcRepr<A>, D>;
 pub type Array<A, D> = ArrayBase<OwnedRepr<A>, D>;
 pub type ArrayView<'a, A, D> = ArrayBase<ViewRepr<&'a A>, D>;
 pub type ArrayViewMut<'a, A, D> = ArrayBase<ViewRepr<&'a mut A>, D>;
