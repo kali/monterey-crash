@@ -1,3 +1,6 @@
+use std::alloc::Layout;
+                use std::sync::atomic::Ordering::SeqCst;
+
         #[global_allocator]
         static A: InstrumentedAllocator = InstrumentedAllocator;
         struct InstrumentedAllocator;
@@ -5,8 +8,7 @@
 static SEM: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
         unsafe impl std::alloc::GlobalAlloc for InstrumentedAllocator {
-            unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
-                use std::sync::atomic::Ordering::SeqCst;
+            unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
                 let depth = SEM.fetch_add(1, SeqCst);
                 let ptr = std::alloc::System.alloc(layout);
                 if depth == 0 {
@@ -15,8 +17,7 @@ static SEM: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new
                 SEM.fetch_sub(1, SeqCst);
                 ptr
             }
-            unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
-                use std::sync::atomic::Ordering::SeqCst;
+            unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
                 let depth = SEM.fetch_add(1, SeqCst);
                 if depth == 0 {
                     eprintln!("Freeing {:p} ({} bytes)", ptr, layout.size());
@@ -24,6 +25,30 @@ static SEM: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new
                 std::alloc::System.dealloc(ptr, layout);
                 SEM.fetch_sub(1, SeqCst);
             }
+
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+                let depth = SEM.fetch_add(1, SeqCst);
+                let ptr = std::alloc::System.alloc_zeroed(layout);
+                if depth == 0 {
+                    eprintln!("All0cated {:p} ({} bytes)", ptr, layout.size());
+                }
+                SEM.fetch_sub(1, SeqCst);
+                ptr
+    }
+    unsafe fn realloc(
+        &self,
+        ptr: *mut u8,
+        layout: Layout,
+        new_size: usize
+    ) -> *mut u8 { 
+                let depth = SEM.fetch_add(1, SeqCst);
+                let new_ptr = std::alloc::System.realloc(ptr, layout, new_size);
+                if depth == 0 {
+                    eprintln!("Realloc {:p} -> {:p} ({} bytes -> {})", ptr, new_ptr, layout.size(), new_size);
+                }
+                SEM.fetch_sub(1, SeqCst);
+                new_ptr
+}
         }
 
 use std::mem;
