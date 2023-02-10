@@ -157,6 +157,9 @@ where
     fn first(&self) -> &A {
 unsafe {		&*(self.ptr.as_ptr() as *const A) }
 	}
+    fn first_mut(&mut self) -> &mut A {
+unsafe {		&mut*(self.ptr.as_mut() as *mut A) }
+	}
 }
 
 type TractResult<T> = Result<T, ()>;
@@ -395,6 +398,10 @@ impl SpecialOps<Box<dyn TypedOp>> for TypedModel {
 use std::collections::HashMap;
 
 fn dump_pfs(pfs: &ProtoFusedSpec) {
+    /*
+    let buf: &[u8;64] = unsafe { std::mem::transmute(pfs) };
+    println!("{:?}", buf);a
+    */
     let ptr = pfs as *const ProtoFusedSpec as *const u8;
     for i in 0..std::mem::size_of::<ProtoFusedSpec>() {
         let v = unsafe { *ptr.add(i) };
@@ -424,6 +431,7 @@ fn crasher_monterey() {
     .unwrap();
     patch.apply(&mut model).unwrap();
 
+/*
     eprintln!("store:");
     dump_pfs(&ProtoFusedSpec::Store);
     eprintln!("bins:");
@@ -437,18 +445,38 @@ fn crasher_monterey() {
     dump_pfs(&ProtoFusedSpec::AddUnicast(OutputStoreSpec::Strides { col_byte_stride: 3, mr: 3, nr: 3, m: 3, n: 3}, AttrOrInput::Attr(Arc::new(()))));
     eprintln!("add row col product:");
     dump_pfs(&ProtoFusedSpec::AddRowColProducts(AttrOrInput::Input(3), AttrOrInput::Input(4)));
+*/
 
     let packed_as =
-        Array::from_shape_fn(1, |_| (Arc::new(()), vec![ProtoFusedSpec::Store]));
+        Array::from_shape_fn(1, |_| (Box::new(()), vec!(ProtoFusedSpec::Store)));
     eprintln!("in ndarray:");
     dump_pfs(&packed_as.first().1[0]);
-    let cloned = packed_as.clone();
+
+    let mut cloned = packed_as.clone();
     std::mem::drop(packed_as);
     eprintln!("cloned:");
     dump_pfs(&cloned.first().1[0]);
+    unsafe {
+        std::ptr::drop_in_place(&mut cloned.first_mut().1[0]);
+    }
+    eprintln!("Dropped in place");
+    std::mem::drop(cloned);
+    eprintln!("Clone dropped");
+}
+
+fn main() {
+    crasher_monterey()
 }
 
 #[test]
-fn t() {
+fn t1() {
 	crasher_monterey()
+}
+
+#[test]
+fn t2() {
+    let mut buf: [u8;64] = [192, 129, 255, 162, 54, 38, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 168, 81, 97, 74, 158, 169, 127, 0, 8, 0, 0, 0, 0, 0, 0, 0, 108, 5, 70, 12, 248, 127, 0, 0, 32, 128, 121, 0, 0, 96, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
+    let mut buf: [u8;64] = [192, 193, 202, 161, 57, 12, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 184, 113, 209, 169, 51, 191, 127, 0, 8, 0, 0, 0, 0, 0, 0, 0, 108, 5, 70, 12, 248, 127, 0, 0, 32, 192, 14, 3, 0, 96, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
+    let pfs = buf.as_ptr() as *mut ProtoFusedSpec;
+    unsafe { std::ptr::drop_in_place(pfs); }
 }
