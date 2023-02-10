@@ -264,15 +264,6 @@ pub struct Shape<D> {
     pub(crate) strides: Strides<Contiguous>,
 }
 pub(crate) enum Contiguous {}
-#[automatically_derived]
-impl ::core::marker::Copy for Contiguous {}
-#[automatically_derived]
-impl ::core::clone::Clone for Contiguous {
-    #[inline]
-    fn clone(&self) -> Contiguous {
-        unimplemented!()
-    }
-}
 impl<D> Shape<D> {
     pub(crate) fn is_c(&self) -> bool {
         match self.strides {
@@ -355,17 +346,6 @@ pub struct Axis(pub usize);
 impl ::core::clone::Clone for Axis {
     #[inline]
     fn clone(&self) -> Axis {
-        unimplemented!()
-    }
-}
-#[automatically_derived]
-impl ::core::marker::Copy for Axis {}
-#[automatically_derived]
-impl ::core::cmp::Eq for Axis {}
-#[automatically_derived]
-impl ::core::cmp::PartialEq for Axis {
-    #[inline]
-    fn eq(&self, other: &Axis) -> bool {
         unimplemented!()
     }
 }
@@ -511,13 +491,6 @@ impl IntoDimension for (Ix, Ix, Ix) {
         unimplemented!()
     }
 }
-impl Convert for [Ix; 4] {
-    type To = (Ix, Ix, Ix, Ix);
-    #[inline]
-    fn convert(self) -> Self::To {
-        unimplemented!()
-    }
-}
 impl IntoDimension for (Ix, Ix, Ix, Ix) {
     type Dim = Dim<[Ix; 4]>;
     #[inline(always)]
@@ -525,24 +498,10 @@ impl IntoDimension for (Ix, Ix, Ix, Ix) {
         unimplemented!()
     }
 }
-impl Convert for [Ix; 5] {
-    type To = (Ix, Ix, Ix, Ix, Ix);
-    #[inline]
-    fn convert(self) -> Self::To {
-        unimplemented!()
-    }
-}
 impl IntoDimension for (Ix, Ix, Ix, Ix, Ix) {
     type Dim = Dim<[Ix; 5]>;
     #[inline(always)]
     fn into_dimension(self) -> Self::Dim {
-        unimplemented!()
-    }
-}
-impl Convert for [Ix; 6] {
-    type To = (Ix, Ix, Ix, Ix, Ix, Ix);
-    #[inline]
-    fn convert(self) -> Self::To {
         unimplemented!()
     }
 }
@@ -1060,11 +1019,6 @@ impl<T> DerefMut for IxDynRepr<T> {
         }
     }
 }
-impl Default for IxDynRepr<Ix> {
-    fn default() -> Self {
-        unimplemented!()
-    }
-}
 impl<T: Copy + Zero> IxDynRepr<T> {
     pub fn copy_from(x: &[T]) -> Self {
         if x.len() <= CAP {
@@ -1096,16 +1050,6 @@ impl<T: Copy> Clone for IxDynRepr<T> {
             IxDynRepr::Inline(len, arr) => IxDynRepr::Inline(len, arr),
             _ => Self::from(&self[..]),
         }
-    }
-}
-impl<T: PartialEq> PartialEq for IxDynRepr<T> {
-    fn eq(&self, rhs: &Self) -> bool {
-        unimplemented!()
-    }
-}
-impl<T: Hash> Hash for IxDynRepr<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        unimplemented!()
     }
 }
 pub struct IxDynImpl(IxDynRepr<Ix>);
