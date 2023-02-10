@@ -48,32 +48,26 @@ pub unsafe trait RawDataClone: RawData {
     unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>);
 }
 pub unsafe trait Data: RawData {
-    fn into_owned<D>(self_: ArrayBase<Self, D>) -> Array<Self::Elem, D>
+    fn into_owned(self_: ArrayBase<Self>) -> Array<Self::Elem>
     where
-        Self::Elem: Clone,
-        D: Dimension;
-    fn try_into_owned_nocopy<D>(
-        self_: ArrayBase<Self, D>,
-    ) -> Result<Array<Self::Elem, D>, ArrayBase<Self, D>>
-    where
-        D: Dimension;
+        Self::Elem: Clone;
+    fn try_into_owned_nocopy(
+        self_: ArrayBase<Self>
+    ) -> Result<Array<Self::Elem>, ArrayBase<Self>>;
 }
 unsafe impl<A> RawData for OwnedRepr<A> {
     type Elem = A;
 }
 unsafe impl<A> Data for OwnedRepr<A> {
-    fn into_owned<D>(self_: ArrayBase<Self, D>) -> Array<Self::Elem, D>
+    fn into_owned(self_: ArrayBase<Self>) -> Array<Self::Elem>
     where
         A: Clone,
-        D: Dimension,
     {
         unimplemented!()
     }
-    fn try_into_owned_nocopy<D>(
-        self_: ArrayBase<Self, D>,
-    ) -> Result<Array<Self::Elem, D>, ArrayBase<Self, D>>
-    where
-        D: Dimension,
+    fn try_into_owned_nocopy(
+        self_: ArrayBase<Self>,
+    ) -> Result<Array<Self::Elem>, ArrayBase<Self>>
     {
         unimplemented!()
     }
@@ -177,6 +171,7 @@ where
 use std::ptr;
 pub unsafe trait TrustedIterator {}
 unsafe impl<D> TrustedIterator for IndicesIter<D> where D: Dimension {}
+unsafe impl TrustedIterator for std::ops::Range<usize> {}
 pub fn to_vec_mapped<I, F, B>(iter: I, mut f: F) -> Vec<B>
 where
     I: TrustedIterator + ExactSizeIterator,
@@ -717,44 +712,27 @@ pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ()> {
         Ok(dim.size())
     }
 }
-pub fn offset_from_low_addr_ptr_to_logical_ptr<D: Dimension>(dim: &D, strides: &D) -> usize {
-    let offset = IntoIterator::into_iter(dim.slice())
-        .zip(strides.slice())
-        .fold(0, |_offset, (&d, &s)| {
-            let s = s as isize;
-            if s < 0 && d > 1 {
-                unimplemented!()
-            } else {
-                _offset
-            }
-        });
-    offset as usize
-}
 pub type Ix = usize;
-pub struct ArrayBase<S, D>
+pub struct ArrayBase<S>
 where
     S: RawData,
 {
     data: S,
     ptr: std::ptr::NonNull<S::Elem>,
-    dim: D,
-    strides: D,
 }
-pub type Array<A, D> = ArrayBase<OwnedRepr<A>, D>;
-impl<S: RawDataClone, D: Clone> Clone for ArrayBase<S, D> {
-    fn clone(&self) -> ArrayBase<S, D> {
+pub type Array<A> = ArrayBase<OwnedRepr<A>>;
+impl<S: RawDataClone> Clone for ArrayBase<S> {
+    fn clone(&self) -> ArrayBase<S> {
         unsafe {
             let (data, ptr) = self.data.clone_with_ptr(self.ptr);
             ArrayBase {
                 data,
                 ptr,
-                dim: self.dim.clone(),
-                strides: self.strides.clone(),
             }
         }
     }
 }
-impl<A, S> ArrayBase<S, Ix1>
+impl<A, S> ArrayBase<S>
 where
     S: RawData<Elem = A>,
 {
@@ -762,64 +740,42 @@ where
         let array = ArrayBase {
             data,
             ptr,
-            dim: Ix1(0),
-            strides: Ix1(1),
         };
         array
     }
 }
-impl<A, S, D> ArrayBase<S, D>
+impl<A, S> ArrayBase<S>
 where
     S: RawData<Elem = A>,
-    D: Dimension,
 {
-    pub(crate) unsafe fn with_strides_dim<E>(self, strides: E, dim: E) -> ArrayBase<S, E>
-    where
-        E: Dimension,
+    pub(crate) unsafe fn with_strides_dim(self) -> ArrayBase<S>
     {
         ArrayBase {
             data: self.data,
             ptr: self.ptr,
-            dim,
-            strides,
         }
     }
 }
-impl<S, A, D> ArrayBase<S, D>
+impl<S, A> ArrayBase<S>
 where
     S: DataOwned<Elem = A>,
-    D: Dimension,
 {
-    pub fn from_shape_fn<Sh, F>(shape: Sh, f: F) -> Self
+    pub fn from_shape_fn<F>(shape: usize, f: F) -> Self
     where
-        Sh: ShapeBuilder<Dim = D>,
-        F: FnMut(D::Pattern) -> A,
+        F: FnMut(usize) -> A,
     {
-        let shape = shape.into_shape();
-        let _ = match size_of_shape_checked(&shape.dim) {
-            Ok(sz) => sz,
-            Err(_) => {
-                unimplemented!()
-            }
-        };
-        let v = to_vec_mapped(indices(shape.dim.clone()).into_iter(), f);
+        let v = to_vec_mapped((0..shape).into_iter(), f);
         unsafe { Self::from_shape_vec_unchecked(shape, v) }
     }
-    pub unsafe fn from_shape_vec_unchecked<Sh>(shape: Sh, v: Vec<A>) -> Self
-    where
-        Sh: Into<StrideShape<D>>,
+    pub unsafe fn from_shape_vec_unchecked(shape: usize, v: Vec<A>) -> Self
     {
-        let shape = shape.into();
-        let dim = shape.dim;
-        let strides = dim.default_strides();
-        Self::from_vec_dim_stride_unchecked(dim, strides, v)
+        Self::from_vec_dim_stride_unchecked(shape, v)
     }
-    unsafe fn from_vec_dim_stride_unchecked(dim: D, strides: D, mut v: Vec<A>) -> Self {
+    unsafe fn from_vec_dim_stride_unchecked(shape: usize, mut v: Vec<A>) -> Self {
         let ptr = std::ptr::NonNull::new(
             v.as_mut_ptr()
-                .add(offset_from_low_addr_ptr_to_logical_ptr(&dim, &strides)),
         )
         .unwrap();
-        ArrayBase::from_data_ptr(DataOwned::new(v), ptr).with_strides_dim(strides, dim)
+        ArrayBase::from_data_ptr(DataOwned::new(v), ptr).with_strides_dim()
     }
 }
