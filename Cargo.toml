@@ -8,6 +8,7 @@ readme = "README-crates.io.md"
 
 [dependencies]
 num-traits = { version = "0.2", default-features = false }
+tracing-allocations = "0.1.0"
 
 [profile.release]
 debug=true

@@ -1,5 +1,34 @@
+        #[global_allocator]
+        static A: InstrumentedAllocator = InstrumentedAllocator;
+        struct InstrumentedAllocator;
+
+static SEM: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+        unsafe impl std::alloc::GlobalAlloc for InstrumentedAllocator {
+            unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+                use std::sync::atomic::Ordering::SeqCst;
+                let depth = SEM.fetch_add(1, SeqCst);
+                let ptr = std::alloc::System.alloc(layout);
+                if depth == 0 {
+                    eprintln!("Allocated {:p} ({} bytes)", ptr, layout.size());
+                }
+                SEM.fetch_sub(1, SeqCst);
+                ptr
+            }
+            unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
+                use std::sync::atomic::Ordering::SeqCst;
+                let depth = SEM.fetch_add(1, SeqCst);
+                if depth == 0 {
+                    eprintln!("Freeing {:p} ({} bytes)", ptr, layout.size());
+                }
+                std::alloc::System.dealloc(ptr, layout);
+                SEM.fetch_sub(1, SeqCst);
+            }
+        }
+
 use std::mem;
 use std::ptr::NonNull;
+//#[derive(Clone)]
 pub struct OwnedRepr<A> {
     it: Vec<A>,
 }
