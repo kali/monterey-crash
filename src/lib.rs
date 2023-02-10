@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-use std::sync::Arc;
 #[allow(non_snake_case)]
 pub fn Ix1(i0: Ix) -> Ix1 {
     Dim::new([i0])
@@ -12,8 +10,6 @@ pub type Ix4 = Dim<[Ix; 4]>;
 pub type Ix5 = Dim<[Ix; 5]>;
 pub type Ix6 = Dim<[Ix; 6]>;
 pub type IxDyn = Dim<IxDynImpl>;
-pub type ArrayView1<'a, A> = ArrayView<'a, A, Ix1>;
-pub type ArrayViewMut1<'a, A> = ArrayViewMut<'a, A, Ix1>;
 pub(crate) fn zip<I, J>(i: I, j: J) -> std::iter::Zip<I::IntoIter, J::IntoIter>
 where
     I: IntoIterator,
@@ -92,9 +88,6 @@ pub unsafe trait Data: RawData {
     where
         D: Dimension;
 }
-unsafe impl<A> RawData for OwnedArcRepr<A> {
-    type Elem = A;
-}
 unsafe impl<A> RawData for OwnedRepr<A> {
     type Elem = A;
 }
@@ -129,12 +122,6 @@ where
         }
         (u, new_ptr)
     }
-}
-unsafe impl<'a, A> RawData for ViewRepr<&'a A> {
-    type Elem = A;
-}
-unsafe impl<'a, A> RawData for ViewRepr<&'a mut A> {
-    type Elem = A;
 }
 pub unsafe trait DataOwned: Data {
     type MaybeUninit: DataOwned<Elem = MaybeUninit<Self::Elem>>;
@@ -323,87 +310,6 @@ where
     }
 }
 pub struct Axis(pub usize);
-pub trait DimMax<Other: Dimension> {
-    type Output: Dimension;
-}
-impl<D: Dimension> DimMax<D> for D {
-    type Output = D;
-}
-impl DimMax<Ix1> for Ix0 {
-    type Output = Ix1;
-}
-impl DimMax<Ix0> for Ix1 {
-    type Output = Ix1;
-}
-impl DimMax<Ix0> for Ix2 {
-    type Output = Ix2;
-}
-impl DimMax<Ix0> for Ix3 {
-    type Output = Ix3;
-}
-impl DimMax<Ix0> for Ix4 {
-    type Output = Ix4;
-}
-impl DimMax<Ix0> for Ix5 {
-    type Output = Ix5;
-}
-impl DimMax<Ix0> for Ix6 {
-    type Output = Ix6;
-}
-impl DimMax<Ix2> for Ix1 {
-    type Output = Ix2;
-}
-impl DimMax<Ix1> for Ix2 {
-    type Output = Ix2;
-}
-impl DimMax<Ix3> for Ix2 {
-    type Output = Ix3;
-}
-impl DimMax<Ix2> for Ix3 {
-    type Output = Ix3;
-}
-impl DimMax<Ix4> for Ix3 {
-    type Output = Ix4;
-}
-impl DimMax<Ix3> for Ix4 {
-    type Output = Ix4;
-}
-impl DimMax<Ix5> for Ix4 {
-    type Output = Ix5;
-}
-impl DimMax<Ix4> for Ix5 {
-    type Output = Ix5;
-}
-impl DimMax<Ix6> for Ix5 {
-    type Output = Ix6;
-}
-impl DimMax<Ix5> for Ix6 {
-    type Output = Ix6;
-}
-impl DimMax<IxDyn> for Ix0 {
-    type Output = IxDyn;
-}
-impl DimMax<Ix0> for IxDyn {
-    type Output = IxDyn;
-}
-impl DimMax<IxDyn> for Ix1 {
-    type Output = IxDyn;
-}
-impl DimMax<IxDyn> for Ix2 {
-    type Output = IxDyn;
-}
-impl DimMax<IxDyn> for Ix3 {
-    type Output = IxDyn;
-}
-impl DimMax<IxDyn> for Ix4 {
-    type Output = IxDyn;
-}
-impl DimMax<IxDyn> for Ix5 {
-    type Output = IxDyn;
-}
-impl DimMax<IxDyn> for Ix6 {
-    type Output = IxDyn;
-}
 use num_traits::Zero;
 pub trait IntoDimension {
     type Dim: Dimension;
@@ -515,14 +421,7 @@ where
 {
     index.into_dimension()
 }
-use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
-pub trait Dimension:
-    Clone
-    + Eq
-    + Send
-    + Sync
-    + Default
-{
+pub trait Dimension: Clone + Eq + Send + Sync + Default {
     const NDIM: Option<usize>;
     type Pattern: IntoDimension<Dim = Self> + Clone + PartialEq + Eq + Default;
     type Smaller: Dimension;
@@ -895,111 +794,6 @@ impl<'a> IntoDimension for &'a [Ix] {
         Dim(IxDynImpl::from(self))
     }
 }
-pub trait DimAdd<D: Dimension> {
-    type Output: Dimension;
-}
-impl<D: Dimension> DimAdd<D> for Ix0 {
-    type Output = D;
-}
-impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 1]> {
-    type Output = Dim<[usize; 1 + 0]>;
-}
-impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 1]> {
-    type Output = Dim<[usize; 1 + 1]>;
-}
-impl DimAdd<Dim<[usize; 2]>> for Dim<[usize; 1]> {
-    type Output = Dim<[usize; 1 + 2]>;
-}
-impl DimAdd<IxDyn> for Dim<[usize; 1]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 2]> {
-    type Output = Dim<[usize; 2 + 0]>;
-}
-impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 2]> {
-    type Output = Dim<[usize; 2 + 1]>;
-}
-impl DimAdd<Dim<[usize; 2]>> for Dim<[usize; 2]> {
-    type Output = Dim<[usize; 2 + 2]>;
-}
-impl DimAdd<Dim<[usize; 3]>> for Dim<[usize; 2]> {
-    type Output = Dim<[usize; 2 + 3]>;
-}
-impl DimAdd<IxDyn> for Dim<[usize; 2]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 3]> {
-    type Output = Dim<[usize; 3 + 0]>;
-}
-impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 3]> {
-    type Output = Dim<[usize; 3 + 1]>;
-}
-impl DimAdd<Dim<[usize; 2]>> for Dim<[usize; 3]> {
-    type Output = Dim<[usize; 3 + 2]>;
-}
-impl DimAdd<Dim<[usize; 3]>> for Dim<[usize; 3]> {
-    type Output = Dim<[usize; 3 + 3]>;
-}
-impl DimAdd<Dim<[usize; 4]>> for Dim<[usize; 3]> {
-    type Output = IxDyn;
-}
-impl DimAdd<IxDyn> for Dim<[usize; 3]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 4]> {
-    type Output = Dim<[usize; 4 + 0]>;
-}
-impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 4]> {
-    type Output = Dim<[usize; 4 + 1]>;
-}
-impl DimAdd<Dim<[usize; 3]>> for Dim<[usize; 4]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 4]>> for Dim<[usize; 4]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 5]>> for Dim<[usize; 4]> {
-    type Output = IxDyn;
-}
-impl DimAdd<IxDyn> for Dim<[usize; 4]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 5]> {
-    type Output = Dim<[usize; 5 + 0]>;
-}
-impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 5]> {
-    type Output = Dim<[usize; 5 + 1]>;
-}
-impl DimAdd<Dim<[usize; 4]>> for Dim<[usize; 5]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 5]>> for Dim<[usize; 5]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 6]>> for Dim<[usize; 5]> {
-    type Output = IxDyn;
-}
-impl DimAdd<IxDyn> for Dim<[usize; 5]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 0]>> for Dim<[usize; 6]> {
-    type Output = Dim<[usize; 6 + 0]>;
-}
-impl DimAdd<Dim<[usize; 1]>> for Dim<[usize; 6]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 5]>> for Dim<[usize; 6]> {
-    type Output = IxDyn;
-}
-impl DimAdd<Dim<[usize; 6]>> for Dim<[usize; 6]> {
-    type Output = IxDyn;
-}
-impl DimAdd<IxDyn> for Dim<[usize; 6]> {
-    type Output = IxDyn;
-}
-impl<D: Dimension> DimAdd<D> for IxDyn {
-    type Output = IxDyn;
-}
 pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ()> {
     let size_nonzero = dim
         .slice()
@@ -1037,12 +831,6 @@ where
     strides: D,
 }
 pub type Array<A, D> = ArrayBase<OwnedRepr<A>, D>;
-pub type ArrayView<'a, A, D> = ArrayBase<ViewRepr<&'a A>, D>;
-pub type ArrayViewMut<'a, A, D> = ArrayBase<ViewRepr<&'a mut A>, D>;
-pub struct OwnedArcRepr<A>(Arc<OwnedRepr<A>>);
-pub struct ViewRepr<A> {
-    life: PhantomData<A>,
-}
 impl<S: RawDataClone, D: Clone> Clone for ArrayBase<S, D> {
     fn clone(&self) -> ArrayBase<S, D> {
         unsafe {
