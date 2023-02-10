@@ -387,8 +387,6 @@ where
 pub trait Dimension: Clone + Eq + Send + Sync + Default {
     const NDIM: Option<usize>;
     type Pattern: IntoDimension<Dim = Self> + Clone + PartialEq + Eq + Default;
-    type Smaller: Dimension;
-    type Larger: Dimension;
     fn ndim(&self) -> usize;
     fn into_pattern(self) -> Self::Pattern;
     fn size(&self) -> usize {
@@ -478,8 +476,6 @@ pub trait Dimension: Clone + Eq + Send + Sync + Default {
 impl Dimension for Dim<[Ix; 0]> {
     const NDIM: Option<usize> = Some(0);
     type Pattern = ();
-    type Smaller = Self;
-    type Larger = Ix1;
     fn ndim(&self) -> usize {
         unimplemented!()
     }
@@ -499,8 +495,6 @@ impl Dimension for Dim<[Ix; 0]> {
 impl Dimension for Dim<[Ix; 1]> {
     const NDIM: Option<usize> = Some(1);
     type Pattern = Ix;
-    type Smaller = Ix0;
-    type Larger = Ix2;
     fn ndim(&self) -> usize {
         unimplemented!()
     }
@@ -520,8 +514,6 @@ impl Dimension for Dim<[Ix; 1]> {
 impl Dimension for Dim<[Ix; 2]> {
     const NDIM: Option<usize> = Some(2);
     type Pattern = (Ix, Ix);
-    type Smaller = Ix1;
-    type Larger = Ix3;
     fn ndim(&self) -> usize {
         unimplemented!()
     }
@@ -541,8 +533,6 @@ impl Dimension for Dim<[Ix; 2]> {
 impl Dimension for Dim<[Ix; 3]> {
     const NDIM: Option<usize> = Some(3);
     type Pattern = (Ix, Ix, Ix);
-    type Smaller = Ix2;
-    type Larger = Ix4;
     fn ndim(&self) -> usize {
         unimplemented!()
     }
@@ -562,8 +552,6 @@ impl Dimension for Dim<[Ix; 3]> {
 impl Dimension for Dim<[Ix; 4]> {
     const NDIM: Option<usize> = Some(4);
     type Pattern = (Ix, Ix, Ix, Ix);
-    type Smaller = Dim<[Ix; 4 - 1]>;
-    type Larger = Ix5;
     fn ndim(&self) -> usize {
         unimplemented!()
     }
@@ -583,8 +571,6 @@ impl Dimension for Dim<[Ix; 4]> {
 impl Dimension for Dim<[Ix; 5]> {
     const NDIM: Option<usize> = Some(5);
     type Pattern = (Ix, Ix, Ix, Ix, Ix);
-    type Smaller = Dim<[Ix; 5 - 1]>;
-    type Larger = Ix6;
     fn ndim(&self) -> usize {
         unimplemented!()
     }
@@ -604,8 +590,6 @@ impl Dimension for Dim<[Ix; 5]> {
 impl Dimension for Dim<[Ix; 6]> {
     const NDIM: Option<usize> = Some(6);
     type Pattern = (Ix, Ix, Ix, Ix, Ix, Ix);
-    type Smaller = Dim<[Ix; 6 - 1]>;
-    type Larger = IxDyn;
     fn ndim(&self) -> usize {
         unimplemented!()
     }
@@ -625,8 +609,6 @@ impl Dimension for Dim<[Ix; 6]> {
 impl Dimension for IxDyn {
     const NDIM: Option<usize> = None;
     type Pattern = Self;
-    type Smaller = Self;
-    type Larger = Self;
     fn ndim(&self) -> usize {
         self.ix().len()
     }
