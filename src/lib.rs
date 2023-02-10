@@ -1,8 +1,4 @@
-#![cfg_attr(not(feature = "std"), no_std)]
-extern crate alloc;
-#[cfg(not(feature = "std"))]
-extern crate core as std;
-use alloc::sync::Arc;
+use std::sync::Arc;
 use std::marker::PhantomData;
 #[allow(non_snake_case)]
 #[inline(always)]
@@ -27,9 +23,6 @@ where
     i.into_iter().zip(j)
 }
 macro_rules ! izip { (@ closure $ p : pat => $ tup : expr) => { |$ p | $ tup } ; (@ closure $ p : pat => ($ ($ tup : tt) *) , $ _iter : expr $ (, $ tail : expr) *) => { izip ! (@ closure ($ p , b) => ($ ($ tup) *, b) $ (, $ tail) *) } ; ($ first : expr $ (,) *) => { IntoIterator :: into_iter ($ first) } ; ($ first : expr , $ second : expr $ (,) *) => { izip ! ($ first) . zip ($ second) } ; ($ first : expr $ (, $ rest : expr) * $ (,) *) => { izip ! ($ first) $ (. zip ($ rest)) * . map (izip ! (@ closure a => (a) $ (, $ rest) *)) } ; }
-use alloc::borrow::ToOwned;
-use alloc::slice;
-use alloc::vec::Vec;
 use std::mem;
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
@@ -48,7 +41,7 @@ impl<A> OwnedRepr<A> {
         Self { ptr, len, capacity }
     }
     pub(crate) fn as_slice(&self) -> &[A] {
-        unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
+        unsafe { std::slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
     }
     pub(crate) fn as_ptr(&self) -> *const A {
         self.ptr.as_ptr()
@@ -471,7 +464,6 @@ macro_rules ! array_expr { ([$ self_ : expr] $ ($ index : tt) *) => ([$ ($ self_
 macro_rules ! array_zero { ([] $ ($ index : tt) *) => ([$ (sub ! ($ index 0) ,) *]) }
 macro_rules ! tuple_to_array { ([] $ ($ n : tt) *) => { $ (impl Convert for [Ix ; $ n] { type To = index ! (tuple_type [Ix] $ n) ; # [inline] fn convert (self) -> Self :: To { index ! (tuple_expr [self] $ n) } } impl IntoDimension for [Ix ; $ n] { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (self) } } impl IntoDimension for index ! (tuple_type [Ix] $ n) { type Dim = Dim < [Ix ; $ n] >; # [inline (always)] fn into_dimension (self) -> Self :: Dim { Dim :: new (index ! (array_expr [self] $ n)) } } impl Zero for Dim < [Ix ; $ n] > { # [inline] fn zero () -> Self { Dim :: new (index ! (array_zero [] $ n)) } fn is_zero (& self) -> bool { self . slice () . iter () . all (| x | * x == 0) } }) * } }
 index_item ! (tuple_to_array [] 7);
-use std::fmt;
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Dim<I: ?Sized> {
     index: I,
@@ -843,7 +835,6 @@ impl Dimension for IxDyn {
         IxDyn::zeros(ndim)
     }
 }
-use alloc::boxed::Box;
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 const CAP: usize = 4;
