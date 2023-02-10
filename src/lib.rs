@@ -88,8 +88,6 @@ use std::mem::MaybeUninit;
 #[allow(clippy::missing_safety_doc)]
 pub unsafe trait RawData: Sized {
     type Elem;
-    #[deprecated(note = "Unused", since = "0.15.2")]
-    fn _data_slice(&self) -> Option<&[Self::Elem]>;
 }
 #[allow(clippy::missing_safety_doc)]
 pub unsafe trait RawDataClone: RawData {
@@ -118,15 +116,9 @@ pub unsafe trait Data: RawData {
 }
 unsafe impl<A> RawData for OwnedArcRepr<A> {
     type Elem = A;
-    fn _data_slice(&self) -> Option<&[A]> {
-        unimplemented!()
-    }
 }
 unsafe impl<A> RawData for OwnedRepr<A> {
     type Elem = A;
-    fn _data_slice(&self) -> Option<&[A]> {
-        unimplemented!()
-    }
 }
 unsafe impl<A> Data for OwnedRepr<A> {
     #[inline]
@@ -164,61 +156,23 @@ where
 }
 unsafe impl<'a, A> RawData for ViewRepr<&'a A> {
     type Elem = A;
-    #[inline]
-    fn _data_slice(&self) -> Option<&[A]> {
-        unimplemented!()
-    }
 }
 unsafe impl<'a, A> RawData for ViewRepr<&'a mut A> {
     type Elem = A;
-    #[inline]
-    fn _data_slice(&self) -> Option<&[A]> {
-        unimplemented!()
-    }
 }
 #[allow(clippy::missing_safety_doc)]
 pub unsafe trait DataOwned: Data {
-    type MaybeUninit: DataOwned<Elem = MaybeUninit<Self::Elem>>
-        + RawDataSubst<Self::Elem, Output = Self>;
+    type MaybeUninit: DataOwned<Elem = MaybeUninit<Self::Elem>>;
     fn new(elements: Vec<Self::Elem>) -> Self;
-    fn into_shared(self) -> OwnedArcRepr<Self::Elem>;
 }
 unsafe impl<A> DataOwned for OwnedRepr<A> {
     type MaybeUninit = OwnedRepr<MaybeUninit<A>>;
     fn new(elements: Vec<A>) -> Self {
         OwnedRepr::from(elements)
     }
-    fn into_shared(self) -> OwnedArcRepr<A> {
-        unimplemented!()
-    }
-}
-pub trait RawDataSubst<A>: RawData {
-    type Output: RawData<Elem = A>;
-    unsafe fn data_subst(self) -> Self::Output;
-}
-impl<A, B> RawDataSubst<B> for OwnedRepr<A> {
-    type Output = OwnedRepr<B>;
-    unsafe fn data_subst(self) -> Self::Output {
-        unimplemented!()
-    }
 }
 #[derive(Clone)]
 pub struct ShapeError {
-    repr: ErrorKind,
-}
-#[non_exhaustive]
-#[derive(Copy, Clone, Debug)]
-pub enum ErrorKind {
-    IncompatibleShape = 1,
-    IncompatibleLayout,
-    RangeLimited,
-    OutOfBounds,
-    Unsupported,
-    Overflow,
-}
-#[inline(always)]
-pub fn from_kind(k: ErrorKind) -> ShapeError {
-    unimplemented!()
 }
 pub(crate) fn nonnull_from_vec_data<T>(v: &mut Vec<T>) -> NonNull<T> {
     unsafe { NonNull::new_unchecked(v.as_mut_ptr()) }
@@ -318,12 +272,6 @@ where
     });
     debug_assert_eq!(size, result.len());
     result
-}
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum Order {
-    RowMajor,
-    ColumnMajor,
 }
 #[derive(Copy, Clone, Debug)]
 pub struct Shape<D> {
@@ -1160,7 +1108,7 @@ pub fn size_of_shape_checked<D: Dimension>(dim: &D) -> Result<usize, ShapeError>
         .iter()
         .filter(|&&d| d != 0)
         .try_fold(1usize, |acc, &d| acc.checked_mul(d))
-        .ok_or_else(|| from_kind(ErrorKind::Overflow))?;
+        .unwrap();
     if size_nonzero > ::std::isize::MAX as usize {
         unimplemented!()
     } else {
