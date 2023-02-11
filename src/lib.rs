@@ -1,14 +1,22 @@
 use std::mem;
-use std::ptr::NonNull;
-pub struct OwnedRepr<A> {
-    pub it: Vec<A>,
-}
-impl<A> OwnedRepr<A> {
+use std::mem::size_of;
+use std::mem::MaybeUninit;
+use std::ptr;
+use std::sync::Arc;
+use std::collections::HashMap;
+pub struct OwnedRepr<A>(Vec<A>);
+impl<A:Clone> OwnedRepr<A> {
     pub(crate) fn as_slice(&self) -> &[A] {
-        &self.it
+        &self.0
     }
-    pub(crate) fn as_ptr(&self) -> *const A {
-        self.it.as_ptr()
+    unsafe fn clone_with_ptr(&self, ptr: *const A) -> (OwnedRepr<A>, *const A) {
+        let mut u = self.clone();
+        let mut new_ptr = u.0.as_ptr();
+        if size_of::<A>() != 0 {
+            let our_off = (ptr as isize - self.0.as_ptr() as isize) / mem::size_of::<A>() as isize;
+            new_ptr = new_ptr.offset(our_off);
+        }
+        (u, new_ptr)
     }
 }
 impl<A> Clone for OwnedRepr<A>
@@ -16,49 +24,9 @@ where
     A: Clone,
 {
     fn clone(&self) -> Self {
-        Self {
-            it: self.as_slice().to_owned(),
-        }
+        Self(self.as_slice().to_owned())
     }
 }
-use std::mem::size_of;
-use std::mem::MaybeUninit;
-pub trait RawData: Sized {
-    type Elem;
-}
-pub unsafe trait RawDataClone: RawData {
-    unsafe fn clone_with_ptr(&self, ptr: *const Self::Elem) -> (Self, *const Self::Elem);
-}
-pub unsafe trait Data: RawData {}
-impl<A> RawData for OwnedRepr<A> {
-    type Elem = A;
-}
-unsafe impl<A> Data for OwnedRepr<A> {}
-unsafe impl<A> RawDataClone for OwnedRepr<A>
-where
-    A: Clone,
-{
-    unsafe fn clone_with_ptr(&self, ptr: *const Self::Elem) -> (Self, *const Self::Elem) {
-        let mut u = self.clone();
-        let mut new_ptr = u.as_ptr();
-        if size_of::<A>() != 0 {
-            let our_off = (ptr as isize - self.as_ptr() as isize) / mem::size_of::<A>() as isize;
-            new_ptr = new_ptr.offset(our_off);
-        }
-        (u, new_ptr)
-    }
-}
-pub unsafe trait DataOwned: Data {
-    type MaybeUninit: DataOwned<Elem = MaybeUninit<Self::Elem>>;
-    fn new(elements: Vec<Self::Elem>) -> Self;
-}
-unsafe impl<A> DataOwned for OwnedRepr<A> {
-    type MaybeUninit = OwnedRepr<MaybeUninit<A>>;
-    fn new(elements: Vec<A>) -> Self {
-        OwnedRepr { it: elements }
-    }
-}
-use std::ptr;
 pub unsafe trait TrustedIterator {}
 unsafe impl TrustedIterator for std::ops::Range<usize> {}
 pub fn to_vec_mapped<I, F, B>(iter: I, mut f: F) -> Vec<B>
@@ -80,12 +48,10 @@ where
 }
 pub struct ArrayBase<A> {
     data: OwnedRepr<A>,
-    ptr: *const A,
+    pub ptr: *const A,
 }
 pub type Array<A> = ArrayBase<A>;
-impl<A> Clone for ArrayBase<A>
-where
-    OwnedRepr<A>: RawDataClone<Elem = A>,
+impl<A:Clone> Clone for ArrayBase<A>
 {
     fn clone(&self) -> ArrayBase<A> {
         unsafe {
@@ -101,14 +67,6 @@ impl<A> ArrayBase<A> {
     }
 }
 impl<A> ArrayBase<A> {
-    pub(crate) unsafe fn with_strides_dim(self) -> ArrayBase<A> {
-        ArrayBase {
-            data: self.data,
-            ptr: self.ptr,
-        }
-    }
-}
-impl<A> ArrayBase<A> {
     pub fn from_shape_fn<F>(shape: usize, f: F) -> Self
     where
         F: FnMut(usize) -> A,
@@ -121,17 +79,10 @@ impl<A> ArrayBase<A> {
     }
     unsafe fn from_vec_dim_stride_unchecked(shape: usize, mut v: Vec<A>) -> Self {
         let ptr = v.as_mut_ptr();
-        ArrayBase::from_data_ptr(DataOwned::new(v), ptr).with_strides_dim()
-    }
-    fn first(&self) -> &A {
-        unsafe { &*(self.ptr as *const A) }
-    }
-    fn first_mut(&mut self) -> &mut A {
-        unsafe { &mut *(self.ptr as *mut A) }
+        ArrayBase::from_data_ptr(OwnedRepr(v), ptr)
     }
 }
 type TractResult<T> = Result<T, ()>;
-use std::sync::Arc;
 #[derive(Copy, Clone)]
 enum BinOp {
     Min,
@@ -353,7 +304,6 @@ impl SpecialOps<Box<dyn TypedOp>> for TypedModel {
         }
     }
 }
-use std::collections::HashMap;
 fn dump_pfs(pfs: &ProtoFusedSpec) {
     let ptr = pfs as *const ProtoFusedSpec as *const u8;
     for i in 0..std::mem::size_of::<ProtoFusedSpec>() {
@@ -386,13 +336,14 @@ fn crasher_monterey() {
     patch.apply(&mut model).unwrap();
     let packed_as = Array::from_shape_fn(1, |_| (Box::new(()), vec![ProtoFusedSpec::Store]));
     eprintln!("in ndarray:");
-    dump_pfs(&packed_as.first().1[0]);
+    unsafe { dump_pfs(&(*packed_as.ptr).1[0]) };
     let mut cloned = packed_as.clone();
     std::mem::drop(packed_as);
     eprintln!("cloned:");
-    dump_pfs(&cloned.first().1[0]);
     unsafe {
-        std::ptr::drop_in_place(&mut cloned.first_mut().1[0]);
+    	dump_pfs(&(*cloned.ptr).1[0]);
+	let pfss : &ProtoFusedSpec = &(*cloned.ptr).1[0];
+    	std::ptr::drop_in_place(&mut (pfss as *const _ as *mut ProtoFusedSpec));
     }
     eprintln!("Dropped in place");
     std::mem::drop(cloned);
