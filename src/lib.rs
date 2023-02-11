@@ -9,13 +9,9 @@ impl<A:Clone> OwnedRepr<A> {
     pub(crate) fn as_slice(&self) -> &[A] {
         &self.0
     }
-    unsafe fn clone_with_ptr(&self, ptr: *const A) -> (OwnedRepr<A>, *const A) {
+    fn clone_with_ptr(&self) -> (OwnedRepr<A>, *const A) {
         let mut u = self.clone();
         let mut new_ptr = u.0.as_ptr();
-        if size_of::<A>() != 0 {
-            let our_off = (ptr as isize - self.0.as_ptr() as isize) / mem::size_of::<A>() as isize;
-            new_ptr = new_ptr.offset(our_off);
-        }
         (u, new_ptr)
     }
 }
@@ -55,13 +51,14 @@ impl<A:Clone> Clone for ArrayBase<A>
 {
     fn clone(&self) -> ArrayBase<A> {
         unsafe {
-            let (data, ptr) = self.data.clone_with_ptr(self.ptr);
+            let (data, ptr) = self.data.clone_with_ptr();
             ArrayBase { data, ptr }
         }
     }
 }
 impl<A> ArrayBase<A> {
-    pub(crate) unsafe fn from_data_ptr(data: OwnedRepr<A>, ptr: *const A) -> Self {
+    pub(crate) fn from_data_ptr(data: OwnedRepr<A>) -> Self {
+        let ptr = data.0.as_ptr();
         let array = ArrayBase { data, ptr };
         array
     }
@@ -72,14 +69,10 @@ impl<A> ArrayBase<A> {
         F: FnMut(usize) -> A,
     {
         let v = to_vec_mapped((0..shape).into_iter(), f);
-        unsafe { Self::from_shape_vec_unchecked(shape, v) }
+        Self::from_shape_vec_unchecked(shape, v)
     }
-    pub unsafe fn from_shape_vec_unchecked(shape: usize, v: Vec<A>) -> Self {
-        Self::from_vec_dim_stride_unchecked(shape, v)
-    }
-    unsafe fn from_vec_dim_stride_unchecked(shape: usize, mut v: Vec<A>) -> Self {
-        let ptr = v.as_mut_ptr();
-        ArrayBase::from_data_ptr(OwnedRepr(v), ptr)
+    pub fn from_shape_vec_unchecked(shape: usize, v: Vec<A>) -> Self {
+        ArrayBase::from_data_ptr(OwnedRepr(v))
     }
 }
 type TractResult<T> = Result<T, ()>;
