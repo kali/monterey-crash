@@ -9,11 +9,6 @@ impl<A:Clone> OwnedRepr<A> {
     pub(crate) fn as_slice(&self) -> &[A] {
         &self.0
     }
-    fn clone_with_ptr(&self) -> (OwnedRepr<A>, *const A) {
-        let mut u = self.clone();
-        let mut new_ptr = u.0.as_ptr();
-        (u, new_ptr)
-    }
 }
 impl<A> Clone for OwnedRepr<A>
 where
@@ -42,37 +37,23 @@ where
     });
     result
 }
-pub struct ArrayBase<A> {
+pub struct Array<A> {
     data: OwnedRepr<A>,
-    pub ptr: *const A,
 }
-pub type Array<A> = ArrayBase<A>;
-impl<A:Clone> Clone for ArrayBase<A>
+impl<A:Clone> Clone for Array<A>
 {
-    fn clone(&self) -> ArrayBase<A> {
-        unsafe {
-            let (data, ptr) = self.data.clone_with_ptr();
-            ArrayBase { data, ptr }
-        }
+    fn clone(&self) -> Array<A> {
+            let data = self.data.clone();
+            Array { data }
     }
 }
-impl<A> ArrayBase<A> {
-    pub(crate) fn from_data_ptr(data: OwnedRepr<A>) -> Self {
-        let ptr = data.0.as_ptr();
-        let array = ArrayBase { data, ptr };
-        array
-    }
-}
-impl<A> ArrayBase<A> {
+impl<A> Array<A> {
     pub fn from_shape_fn<F>(shape: usize, f: F) -> Self
     where
         F: FnMut(usize) -> A,
     {
         let v = to_vec_mapped((0..shape).into_iter(), f);
-        Self::from_shape_vec_unchecked(shape, v)
-    }
-    pub fn from_shape_vec_unchecked(shape: usize, v: Vec<A>) -> Self {
-        ArrayBase::from_data_ptr(OwnedRepr(v))
+        Array { data: OwnedRepr(v) }
     }
 }
 type TractResult<T> = Result<T, ()>;
@@ -329,14 +310,14 @@ fn crasher_monterey() {
     patch.apply(&mut model).unwrap();
     let packed_as = Array::from_shape_fn(1, |_| (Box::new(()), vec![ProtoFusedSpec::Store]));
     eprintln!("in ndarray:");
-    unsafe { dump_pfs(&(*packed_as.ptr).1[0]) };
+    unsafe { dump_pfs(&packed_as.data.0[0].1[0]) };
     let mut cloned = packed_as.clone();
     std::mem::drop(packed_as);
     eprintln!("cloned:");
     unsafe {
-    	dump_pfs(&(*cloned.ptr).1[0]);
-	let pfss : &ProtoFusedSpec = &(*cloned.ptr).1[0];
-    	std::ptr::drop_in_place(&mut (pfss as *const _ as *mut ProtoFusedSpec));
+	let pfs : &ProtoFusedSpec = &cloned.data.0[0].1[0];
+        dump_pfs(pfs);
+    	std::ptr::drop_in_place(&mut (pfs as *const _ as *mut ProtoFusedSpec));
     }
     eprintln!("Dropped in place");
     std::mem::drop(cloned);
