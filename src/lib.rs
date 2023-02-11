@@ -10,9 +10,6 @@ impl<A> OwnedRepr<A> {
     pub(crate) fn as_ptr(&self) -> *const A {
         self.it.as_ptr()
     }
-    pub(crate) fn as_nonnull_mut(&mut self) -> NonNull<A> {
-        NonNull::new(self.it.as_mut_ptr()).unwrap()
-    }
 }
 impl<A> Clone for OwnedRepr<A>
 where
@@ -28,7 +25,7 @@ pub trait RawData: Sized {
     type Elem;
 }
 pub unsafe trait RawDataClone: RawData {
-    unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>);
+    unsafe fn clone_with_ptr(&self, ptr: *const Self::Elem) -> (Self, *const Self::Elem);
 }
 pub unsafe trait Data: RawData {}
 impl<A> RawData for OwnedRepr<A> {
@@ -39,13 +36,13 @@ unsafe impl<A> RawDataClone for OwnedRepr<A>
 where
     A: Clone,
 {
-    unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>) {
+    unsafe fn clone_with_ptr(&self, ptr: *const Self::Elem) -> (Self, *const Self::Elem) {
         let mut u = self.clone();
-        let mut new_ptr = u.as_nonnull_mut();
+        let mut new_ptr = u.as_ptr();
         if size_of::<A>() != 0 {
             let our_off =
-                (ptr.as_ptr() as isize - self.as_ptr() as isize) / mem::size_of::<A>() as isize;
-            new_ptr = NonNull::new(new_ptr.as_ptr().offset(our_off)).unwrap();
+                (ptr as isize - self.as_ptr() as isize) / mem::size_of::<A>() as isize;
+            new_ptr = new_ptr.offset(our_off);
         }
         (u, new_ptr)
     }
@@ -82,7 +79,7 @@ where
 }
 pub struct ArrayBase<A> {
     data: OwnedRepr<A>,
-    ptr: std::ptr::NonNull<A>,
+    ptr: *const A,
 }
 pub type Array<A> = ArrayBase<A>;
 impl<A> Clone for ArrayBase<A>
@@ -97,7 +94,7 @@ where
     }
 }
 impl<A> ArrayBase<A> {
-    pub(crate) unsafe fn from_data_ptr(data: OwnedRepr<A>, ptr: NonNull<A>) -> Self {
+    pub(crate) unsafe fn from_data_ptr(data: OwnedRepr<A>, ptr: *const A) -> Self {
         let array = ArrayBase { data, ptr };
         array
     }
@@ -122,14 +119,14 @@ impl<A> ArrayBase<A> {
         Self::from_vec_dim_stride_unchecked(shape, v)
     }
     unsafe fn from_vec_dim_stride_unchecked(shape: usize, mut v: Vec<A>) -> Self {
-        let ptr = std::ptr::NonNull::new(v.as_mut_ptr()).unwrap();
+        let ptr = v.as_mut_ptr();
         ArrayBase::from_data_ptr(DataOwned::new(v), ptr).with_strides_dim()
     }
     fn first(&self) -> &A {
-        unsafe { &*(self.ptr.as_ptr() as *const A) }
+        unsafe { &*(self.ptr as *const A) }
     }
     fn first_mut(&mut self) -> &mut A {
-        unsafe { &mut *(self.ptr.as_mut() as *mut A) }
+        unsafe { &mut*(self.ptr as *mut A) }
     }
 }
 type TractResult<T> = Result<T, ()>;
