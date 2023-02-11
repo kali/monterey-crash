@@ -9,6 +9,11 @@ enum OutputStoreSpec {
     Strides([isize; 5])
 }
 #[derive(Clone)]
+enum AttrOrInput {
+    Attr(Box<()>),
+    Input(usize),
+}
+#[derive(Clone)]
 enum ProtoFusedSpec {
     BinScalar(AttrOrInput, BinOp),
     BinPerRow(AttrOrInput, BinOp),
@@ -16,11 +21,6 @@ enum ProtoFusedSpec {
     AddRowColProducts(AttrOrInput, AttrOrInput),
     AddUnicast(OutputStoreSpec, AttrOrInput),
     Store,
-}
-#[derive(Clone)]
-enum AttrOrInput {
-    Attr(std::sync::Arc<()>),
-    Input(usize),
 }
 fn main() {
     let mut stuff = vec!(vec!(1));
