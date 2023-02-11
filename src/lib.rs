@@ -16,7 +16,9 @@ where
     A: Clone,
 {
     fn clone(&self) -> Self {
-        Self { it: self.as_slice().to_owned() }
+        Self {
+            it: self.as_slice().to_owned(),
+        }
     }
 }
 use std::mem::size_of;
@@ -40,8 +42,7 @@ where
         let mut u = self.clone();
         let mut new_ptr = u.as_ptr();
         if size_of::<A>() != 0 {
-            let our_off =
-                (ptr as isize - self.as_ptr() as isize) / mem::size_of::<A>() as isize;
+            let our_off = (ptr as isize - self.as_ptr() as isize) / mem::size_of::<A>() as isize;
             new_ptr = new_ptr.offset(our_off);
         }
         (u, new_ptr)
@@ -126,7 +127,7 @@ impl<A> ArrayBase<A> {
         unsafe { &*(self.ptr as *const A) }
     }
     fn first_mut(&mut self) -> &mut A {
-        unsafe { &mut*(self.ptr as *mut A) }
+        unsafe { &mut *(self.ptr as *mut A) }
     }
 }
 type TractResult<T> = Result<T, ()>;
