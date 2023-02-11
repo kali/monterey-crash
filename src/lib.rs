@@ -1,12 +1,9 @@
 use std::mem;
 use std::ptr::NonNull;
 pub struct OwnedRepr<A> {
-    it: Vec<A>,
+    pub it: Vec<A>,
 }
 impl<A> OwnedRepr<A> {
-    pub(crate) fn from(v: Vec<A>) -> Self {
-        Self { it: v }
-    }
     pub(crate) fn as_slice(&self) -> &[A] {
         &self.it
     }
@@ -22,7 +19,7 @@ where
     A: Clone,
 {
     fn clone(&self) -> Self {
-        Self::from(self.as_slice().to_owned())
+        Self { it: self.as_slice().to_owned() }
     }
 }
 use std::mem::size_of;
@@ -60,7 +57,7 @@ pub unsafe trait DataOwned: Data {
 unsafe impl<A> DataOwned for OwnedRepr<A> {
     type MaybeUninit = OwnedRepr<MaybeUninit<A>>;
     fn new(elements: Vec<A>) -> Self {
-        OwnedRepr::from(elements)
+        OwnedRepr { it: elements }
     }
 }
 use std::ptr;
