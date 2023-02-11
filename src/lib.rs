@@ -1,62 +1,5 @@
-/*
-use std::alloc::Layout;
-use std::sync::atomic::Ordering::SeqCst;
-
-#[global_allocator]
-static A: InstrumentedAllocator = InstrumentedAllocator;
-struct InstrumentedAllocator;
-
-static SEM: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-unsafe impl std::alloc::GlobalAlloc for InstrumentedAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let depth = SEM.fetch_add(1, SeqCst);
-        let ptr = std::alloc::System.alloc(layout);
-        if depth == 0 {
-            eprintln!("Allocated {:p} ({} bytes)", ptr, layout.size());
-        }
-        SEM.fetch_sub(1, SeqCst);
-        ptr
-    }
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        let depth = SEM.fetch_add(1, SeqCst);
-        if depth == 0 {
-            eprintln!("Freeing {:p} ({} bytes)", ptr, layout.size());
-        }
-        std::alloc::System.dealloc(ptr, layout);
-        SEM.fetch_sub(1, SeqCst);
-    }
-
-    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        let depth = SEM.fetch_add(1, SeqCst);
-        let ptr = std::alloc::System.alloc_zeroed(layout);
-        if depth == 0 {
-            eprintln!("All0cated {:p} ({} bytes)", ptr, layout.size());
-        }
-        SEM.fetch_sub(1, SeqCst);
-        ptr
-    }
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        let depth = SEM.fetch_add(1, SeqCst);
-        let new_ptr = std::alloc::System.realloc(ptr, layout, new_size);
-        if depth == 0 {
-            eprintln!(
-                "Realloc {:p} -> {:p} ({} bytes -> {})",
-                ptr,
-                new_ptr,
-                layout.size(),
-                new_size
-            );
-        }
-        SEM.fetch_sub(1, SeqCst);
-        new_ptr
-    }
-}
-*/
-
 use std::mem;
 use std::ptr::NonNull;
-//#[derive(Clone)]
 pub struct OwnedRepr<A> {
     it: Vec<A>,
 }
@@ -90,13 +33,11 @@ pub trait RawData: Sized {
 pub unsafe trait RawDataClone: RawData {
     unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>);
 }
-pub unsafe trait Data: RawData {
-}
+pub unsafe trait Data: RawData {}
 impl<A> RawData for OwnedRepr<A> {
     type Elem = A;
 }
-unsafe impl<A> Data for OwnedRepr<A> {
-}
+unsafe impl<A> Data for OwnedRepr<A> {}
 unsafe impl<A> RawDataClone for OwnedRepr<A>
 where
     A: Clone,
@@ -142,16 +83,15 @@ where
     });
     result
 }
-
-pub struct ArrayBase<A>
-{
+pub struct ArrayBase<A> {
     data: OwnedRepr<A>,
     ptr: std::ptr::NonNull<A>,
 }
 pub type Array<A> = ArrayBase<A>;
 impl<A> Clone for ArrayBase<A>
-where OwnedRepr<A> : RawDataClone<Elem = A>
- {
+where
+    OwnedRepr<A>: RawDataClone<Elem = A>,
+{
     fn clone(&self) -> ArrayBase<A> {
         unsafe {
             let (data, ptr) = self.data.clone_with_ptr(self.ptr);
@@ -165,8 +105,7 @@ impl<A> ArrayBase<A> {
         array
     }
 }
-impl<A> ArrayBase<A>
-{
+impl<A> ArrayBase<A> {
     pub(crate) unsafe fn with_strides_dim(self) -> ArrayBase<A> {
         ArrayBase {
             data: self.data,
@@ -174,8 +113,7 @@ impl<A> ArrayBase<A>
         }
     }
 }
-impl<A> ArrayBase<A>
-{
+impl<A> ArrayBase<A> {
     pub fn from_shape_fn<F>(shape: usize, f: F) -> Self
     where
         F: FnMut(usize) -> A,
@@ -197,7 +135,6 @@ impl<A> ArrayBase<A>
         unsafe { &mut *(self.ptr.as_mut() as *mut A) }
     }
 }
-
 type TractResult<T> = Result<T, ()>;
 use std::sync::Arc;
 #[derive(Copy, Clone)]
@@ -294,8 +231,6 @@ struct Node<O> {
     #[cfg_attr(feature = "serialize", serde(skip))]
     pub op: O,
 }
-#[derive(Clone, Default)]
-struct Outlet {}
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct OutletId {
     pub node: usize,
@@ -311,7 +246,6 @@ struct InletId {
     pub node: usize,
     pub slot: usize,
 }
-use std::ops::{Deref, DerefMut};
 struct ModelPatch<O> {
     pub model: Graph<O>,
     pub inputs: HashMap<usize, usize>,
@@ -425,12 +359,7 @@ impl SpecialOps<Box<dyn TypedOp>> for TypedModel {
     }
 }
 use std::collections::HashMap;
-
 fn dump_pfs(pfs: &ProtoFusedSpec) {
-    /*
-    let buf: &[u8;64] = unsafe { std::mem::transmute(pfs) };
-    println!("{:?}", buf);a
-    */
     let ptr = pfs as *const ProtoFusedSpec as *const u8;
     for i in 0..std::mem::size_of::<ProtoFusedSpec>() {
         let v = unsafe { *ptr.add(i) };
@@ -445,7 +374,6 @@ fn dump_pfs(pfs: &ProtoFusedSpec) {
     }
     println!("");
 }
-
 fn crasher_monterey() {
     let mut model = TypedModel::default();
     let source = model.add_source().unwrap();
@@ -461,27 +389,9 @@ fn crasher_monterey() {
     )
     .unwrap();
     patch.apply(&mut model).unwrap();
-
-    /*
-        eprintln!("store:");
-        dump_pfs(&ProtoFusedSpec::Store);
-        eprintln!("bins:");
-        dump_pfs(&ProtoFusedSpec::BinScalar(AttrOrInput::Input(4), BinOp::Min));
-        dump_pfs(&ProtoFusedSpec::BinScalar(AttrOrInput::Input(4), BinOp::Max));
-        dump_pfs(&ProtoFusedSpec::BinPerRow(AttrOrInput::Input(4), BinOp::Min));
-        dump_pfs(&ProtoFusedSpec::BinPerCol(AttrOrInput::Input(4), BinOp::Min));
-        eprintln!("add unicast (with input):");
-        dump_pfs(&ProtoFusedSpec::AddUnicast(OutputStoreSpec::Strides { col_byte_stride: 3, mr: 3, nr: 3, m: 3, n: 3}, AttrOrInput::Input(2)));
-        eprintln!("add unicast (with attr):");
-        dump_pfs(&ProtoFusedSpec::AddUnicast(OutputStoreSpec::Strides { col_byte_stride: 3, mr: 3, nr: 3, m: 3, n: 3}, AttrOrInput::Attr(Arc::new(()))));
-        eprintln!("add row col product:");
-        dump_pfs(&ProtoFusedSpec::AddRowColProducts(AttrOrInput::Input(3), AttrOrInput::Input(4)));
-    */
-
     let packed_as = Array::from_shape_fn(1, |_| (Box::new(()), vec![ProtoFusedSpec::Store]));
     eprintln!("in ndarray:");
     dump_pfs(&packed_as.first().1[0]);
-
     let mut cloned = packed_as.clone();
     std::mem::drop(packed_as);
     eprintln!("cloned:");
@@ -493,30 +403,7 @@ fn crasher_monterey() {
     std::mem::drop(cloned);
     eprintln!("Clone dropped");
 }
-
-fn main() {
-    crasher_monterey()
-}
-
 #[test]
 fn t1() {
     crasher_monterey()
-}
-
-#[test]
-fn t2() {
-    let mut buf: [u8; 64] = [
-        192, 129, 255, 162, 54, 38, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 168, 81, 97, 74, 158, 169, 127,
-        0, 8, 0, 0, 0, 0, 0, 0, 0, 108, 5, 70, 12, 248, 127, 0, 0, 32, 128, 121, 0, 0, 96, 0, 0, 7,
-        0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-    ];
-    let mut buf: [u8; 64] = [
-        192, 193, 202, 161, 57, 12, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 184, 113, 209, 169, 51, 191, 127,
-        0, 8, 0, 0, 0, 0, 0, 0, 0, 108, 5, 70, 12, 248, 127, 0, 0, 32, 192, 14, 3, 0, 96, 0, 0, 7,
-        0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-    ];
-    let pfs = buf.as_ptr() as *mut ProtoFusedSpec;
-    unsafe {
-        std::ptr::drop_in_place(pfs);
-    }
 }
