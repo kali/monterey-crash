@@ -1,3 +1,4 @@
+/*
 use std::alloc::Layout;
 use std::sync::atomic::Ordering::SeqCst;
 
@@ -51,6 +52,7 @@ unsafe impl std::alloc::GlobalAlloc for InstrumentedAllocator {
         new_ptr
     }
 }
+*/
 
 use std::mem;
 use std::ptr::NonNull;
@@ -82,31 +84,18 @@ where
 }
 use std::mem::size_of;
 use std::mem::MaybeUninit;
-pub unsafe trait RawData: Sized {
+pub trait RawData: Sized {
     type Elem;
 }
 pub unsafe trait RawDataClone: RawData {
     unsafe fn clone_with_ptr(&self, ptr: NonNull<Self::Elem>) -> (Self, NonNull<Self::Elem>);
 }
 pub unsafe trait Data: RawData {
-    fn into_owned(self_: ArrayBase<Self>) -> Array<Self::Elem>
-    where
-        Self::Elem: Clone;
-    fn try_into_owned_nocopy(self_: ArrayBase<Self>) -> Result<Array<Self::Elem>, ArrayBase<Self>>;
 }
-unsafe impl<A> RawData for OwnedRepr<A> {
+impl<A> RawData for OwnedRepr<A> {
     type Elem = A;
 }
 unsafe impl<A> Data for OwnedRepr<A> {
-    fn into_owned(self_: ArrayBase<Self>) -> Array<Self::Elem>
-    where
-        A: Clone,
-    {
-        unimplemented!()
-    }
-    fn try_into_owned_nocopy(self_: ArrayBase<Self>) -> Result<Array<Self::Elem>, ArrayBase<Self>> {
-        unimplemented!()
-    }
 }
 unsafe impl<A> RawDataClone for OwnedRepr<A>
 where
@@ -154,45 +143,38 @@ where
     result
 }
 
-pub struct ArrayBase<S>
-where
-    S: RawData,
+pub struct ArrayBase<A>
 {
-    data: S,
-    ptr: std::ptr::NonNull<S::Elem>,
+    data: OwnedRepr<A>,
+    ptr: std::ptr::NonNull<A>,
 }
-pub type Array<A> = ArrayBase<OwnedRepr<A>>;
-impl<S: RawDataClone> Clone for ArrayBase<S> {
-    fn clone(&self) -> ArrayBase<S> {
+pub type Array<A> = ArrayBase<A>;
+impl<A> Clone for ArrayBase<A>
+where OwnedRepr<A> : RawDataClone<Elem = A>
+ {
+    fn clone(&self) -> ArrayBase<A> {
         unsafe {
             let (data, ptr) = self.data.clone_with_ptr(self.ptr);
             ArrayBase { data, ptr }
         }
     }
 }
-impl<A, S> ArrayBase<S>
-where
-    S: RawData<Elem = A>,
-{
-    pub(crate) unsafe fn from_data_ptr(data: S, ptr: NonNull<A>) -> Self {
+impl<A> ArrayBase<A> {
+    pub(crate) unsafe fn from_data_ptr(data: OwnedRepr<A>, ptr: NonNull<A>) -> Self {
         let array = ArrayBase { data, ptr };
         array
     }
 }
-impl<A, S> ArrayBase<S>
-where
-    S: RawData<Elem = A>,
+impl<A> ArrayBase<A>
 {
-    pub(crate) unsafe fn with_strides_dim(self) -> ArrayBase<S> {
+    pub(crate) unsafe fn with_strides_dim(self) -> ArrayBase<A> {
         ArrayBase {
             data: self.data,
             ptr: self.ptr,
         }
     }
 }
-impl<S, A> ArrayBase<S>
-where
-    S: DataOwned<Elem = A>,
+impl<A> ArrayBase<A>
 {
     pub fn from_shape_fn<F>(shape: usize, f: F) -> Self
     where
