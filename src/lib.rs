@@ -18,25 +18,6 @@ where
         Self(self.as_slice().to_owned())
     }
 }
-pub unsafe trait TrustedIterator {}
-unsafe impl TrustedIterator for std::ops::Range<usize> {}
-pub fn to_vec_mapped<I, F, B>(iter: I, mut f: F) -> Vec<B>
-where
-    I: TrustedIterator + ExactSizeIterator,
-    F: FnMut(I::Item) -> B,
-{
-    let (size, _) = iter.size_hint();
-    let mut result = Vec::with_capacity(size);
-    let mut out_ptr = result.as_mut_ptr();
-    let mut len = 0;
-    iter.fold((), |(), elt| unsafe {
-        ptr::write(out_ptr, f(elt));
-        len += 1;
-        result.set_len(len);
-        out_ptr = out_ptr.offset(1);
-    });
-    result
-}
 pub struct Array<A> {
     data: OwnedRepr<A>,
 }
@@ -52,7 +33,7 @@ impl<A> Array<A> {
     where
         F: FnMut(usize) -> A,
     {
-        let v = to_vec_mapped((0..shape).into_iter(), f);
+    	let v = (0..shape).map(f).collect();
         Array { data: OwnedRepr(v) }
     }
 }
